@@ -5,6 +5,7 @@
 #include <array>
 #include <algorithm>
 #include <memory>
+#include <cstdarg>
 
 using namespace std;
 
@@ -34,6 +35,29 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 		shape(array<size_t, num_dimensions>()),
 		strides(array<size_t, num_dimensions>())
 		{}
+
+		T& operator()(size_t dimension_val...){
+			auto offset_to_data_buffer=0;
+			va_list args;
+		    va_start(args, dimension_val);
+		 	size_t strideIndex = 0;
+		 	while(strideIndex<num_dimensions) {
+		 		
+		 		offset_to_data_buffer = offset_to_data_buffer + dimension_val*this->strides[strideIndex]; //TEMPORARY TEST
+
+		 		// cout << "dimension_val " << dimension_val << endl;
+		 		// cout << "strideIndex " << strideIndex << endl;
+		 		// cout << this->strides[strideIndex] << endl;
+		 		// cout << "offset_to_data_buffer " << offset_to_data_buffer << endl;
+
+		 		strideIndex++;
+		 		dimension_val = va_arg(args, int);
+		 	}
+
+		 	va_end(args);
+
+			return this->data_buffer.get()[offset_to_data_buffer];
+		}
 };
 
 
