@@ -25,8 +25,15 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 		offset_to_data_buffer(offset_to_data_buffer_),
 		data_buffer(data_buffer_),
 		shape(shape_),
-		strides(strides_)
-		{}
+		strides(strides_){
+			// cout << "-------------------------in "<< "\n";
+			// cout << total_size_ << "\n";
+			// cout << offset_to_data_buffer_ << "\n";
+			// cout << data_buffer_ << "\n";
+			// cout << shape_ << "\n";
+			// cout << strides_ << "\n";
+			// cout << "ending" << "\n";
+		}
 
 		NdarrayMetadata():
 		total_size(0),
@@ -58,8 +65,43 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 
 			return this->data_buffer.get()[offset_to_data_buffer];
 		}
+
+		NdarrayMetadata<T, num_dimensions-1> operator[](int dimension_val){
+			// cout << "in!! " << endl;
+			auto total_size = this->strides[0];
+			auto offset_to_data_buffer = dimension_val*this->strides[0]; 
+			
+			array<size_t, num_dimensions-1> shape;
+		 	array<size_t, num_dimensions-1> strides;
+
+			for(size_t i=0; i<num_dimensions-1; i++){
+	 			shape[i] = this->shape[i+1];
+	 			strides[i] = this->strides[i+1];
+	 		}
+
+	 		// cout << "dimension_val " << dimension_val << endl;
+	 		// cout << "shape " << shape << endl;
+	 		// cout << "strides " << strides << endl;
+	 		// cout << "offset_to_data_buffer " << offset_to_data_buffer << endl;
+
+			return NdarrayMetadata<T, num_dimensions-1>(total_size, offset_to_data_buffer, 
+				shared_ptr<T>(this->data_buffer, this->data_buffer.get()+offset_to_data_buffer), shape, strides);
+		}
 };
 
+
+template<typename T, size_t N>
+ostream& operator<< (ostream& stream, array<T, N>arg ) {
+	stream << '(';
+	for (size_t i = 0; i < arg.size() ; i++){
+		stream << arg[i];
+		if (i < arg.size() - 1){
+			stream << ", ";
+		}
+	}
+	stream << ')';
+	return stream;
+}
 
 template<typename T, size_t num_dimensions>
 T calc_size(array<T, num_dimensions> a){
@@ -88,7 +130,7 @@ void _deleteArray(T* pointer){
 
 template<typename T, size_t num_dimensions>
 NdarrayMetadata<T, num_dimensions> create_array(T* pointer_to_allocated_memory_, array<size_t, num_dimensions> shape_, function<void(T*)> destructor_=_initDeleter<T>) {
-	cout << "created. \n";
+	// cout << "created. \n";
 	return NdarrayMetadata<T,num_dimensions>(calc_size(shape_), 0, shared_ptr<T>(pointer_to_allocated_memory_, destructor_),
 						shape_, calc_strides(shape_));
 }
