@@ -7,6 +7,8 @@
 #include <memory>
 #include <cstdarg>
 
+#include "slice.hpp"
+
 using namespace std;
 
 template<typename T, size_t num_dimensions> class NdarrayMetadata {
@@ -66,6 +68,36 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 			return this->data_buffer.get()[offset_to_data_buffer];
 		}
 
+		NdarrayMetadata<T, num_dimensions> operator()(Slice slice...){
+			auto shape = this->shape;
+			cout << "shape " << shape << endl;
+			auto strides = this->strides;
+			va_list args;
+		    va_start(args, slice);
+		    auto offset_to_data_buffer= this->offset_to_data_buffer + slice.starting_index*strides[0];
+		 	size_t dimension_val = 0;
+		 	while(dimension_val<num_dimensions) {
+		 		shape[dimension_val] = slice.stopping_index-slice.starting_index;
+		 		strides[dimension_val] = strides[dimension_val]*slice.step;
+
+		 		// cout << "dimension_val " << dimension_val << endl;
+		 		// cout << "shape[dimension_val] " << shape[dimension_val] << endl;
+		 		// cout << slice.starting_index << " slice.starting_index" << endl;
+		 		// cout << slice.stopping_index << " slice.stopping_index" << endl;
+
+		 		dimension_val++;
+		 		slice = va_arg(args, Slice);
+		 	}
+
+		 	va_end(args);
+
+		 	//////////////////???CHANGE
+		 	// auto total_size = calc_size(shape);
+		 	auto total_size = this->total_size;
+			return NdarrayMetadata<T, num_dimensions>(total_size, offset_to_data_buffer, 
+				shared_ptr<T>(this->data_buffer, this->data_buffer.get()+offset_to_data_buffer), shape, strides);
+		}
+
 		NdarrayMetadata<T, num_dimensions-1> operator[](int dimension_val){
 			// cout << "in!! " << endl;
 			auto total_size = this->strides[0];
@@ -87,6 +119,10 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 			return NdarrayMetadata<T, num_dimensions-1>(total_size, offset_to_data_buffer, 
 				shared_ptr<T>(this->data_buffer, this->data_buffer.get()+offset_to_data_buffer), shape, strides);
 		}
+
+		// T calc_size(array<T, num_dimensions> a){
+		// 	return std::accumulate(a.begin(), a.end(), 1, std::multiplies<T>());
+		// }
 };
 
 
