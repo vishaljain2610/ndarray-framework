@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <memory>
 #include <cstdarg>
+#include<string.h> 
 
 #include "slice.hpp"
 
@@ -68,26 +69,44 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 			return this->data_buffer.get()[offset_to_data_buffer];
 		}
 
-		NdarrayMetadata<T, num_dimensions> operator()(Slice slice...){
+		template<const char* sliceType>
+		NdarrayMetadata<T, num_dimensions> operator()(Slice<sliceType> slice...){
 			auto shape = this->shape;
-			cout << "shape " << shape << endl;
+			// cout << "shape " << shape << endl;
 			auto strides = this->strides;
 			va_list args;
 		    va_start(args, slice);
-		    auto offset_to_data_buffer= this->offset_to_data_buffer + slice.starting_index*strides[0];
-		 	size_t dimension_val = 0;
-		 	while(dimension_val<num_dimensions) {
-		 		shape[dimension_val] = slice.stopping_index-slice.starting_index;
-		 		strides[dimension_val] = strides[dimension_val]*slice.step;
+		    auto offset_to_data_buffer = 0;
 
-		 		// cout << "dimension_val " << dimension_val << endl;
-		 		// cout << "shape[dimension_val] " << shape[dimension_val] << endl;
-		 		// cout << slice.starting_index << " slice.starting_index" << endl;
-		 		// cout << slice.stopping_index << " slice.stopping_index" << endl;
+		    // for first dimension because offset needs to be set here
+		    if(!strcmp(slice.type, "range")){
+		    	// cout << "range" << endl;
+		    	offset_to_data_buffer= this->offset_to_data_buffer + slice.starting_index*strides[0];
+	    		shape[0] = slice.stopping_index-slice.starting_index;
+	 			strides[0] = strides[0]*slice.step;
+	    	}
+		    if(!strcmp(slice.type, "all")){
+		    	// cout << "all" << endl;
+		    	offset_to_data_buffer = this->offset_to_data_buffer;
+		    }
+		
+		    size_t dimension_val = 1;
+		    while(dimension_val<num_dimensions){
+		    	slice = va_arg(args, Slice<sliceType>);
 
-		 		dimension_val++;
-		 		slice = va_arg(args, Slice);
-		 	}
+		    	if(!strcmp(slice.type, "range")){
+			    	// cout << "range" << endl;
+			    	shape[dimension_val] = slice.stopping_index-slice.starting_index;
+			 		strides[dimension_val] = strides[dimension_val]*slice.step;
+		    	}
+			    // if(!strcmp(slice.type, "all")){
+			    // 	cout << "all" << endl;
+			    	
+			    // }
+			    // slice = va_arg(args, Slice<sliceType>);
+			    dimension_val++;
+		    }
+
 
 		 	va_end(args);
 
