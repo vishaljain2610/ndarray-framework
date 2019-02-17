@@ -5,6 +5,8 @@
 
 char rangeStr[] = "range";
 char allStr[] = "all";
+char ellipsisStr[] = "ellipsis";
+char endStr[] = "end";
 
 template<const char* typeStr> 
 class Slice{
@@ -27,13 +29,6 @@ public:
 
 	}
 
-	// Slice():
-	// starting_index(0),
-	// stopping_index(-1),
-	// step(1){
-		
-	// }
-
 };
 
 
@@ -44,6 +39,14 @@ Slice<rangeStr> range(int64_t starting_index_, int64_t stopping_index_, int64_t 
 
 Slice<allStr> all(){
 	return Slice<allStr>();
+}
+
+Slice<endStr> end(){
+	return Slice<endStr>();
+}
+
+Slice<ellipsisStr> ellipsis(){
+	return Slice<ellipsisStr>();
 }
 
 #endif
