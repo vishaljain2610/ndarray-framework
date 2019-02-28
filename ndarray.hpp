@@ -13,12 +13,8 @@
 
 using namespace std;
 
-<<<<<<< HEAD
-=======
-
 template<typename T, size_t num_dimensions> T calc_size(array<T, num_dimensions> a);
 
->>>>>>> 0bb32614de84b32dd3865f44ca27930c23cf3222
 template<typename T, size_t num_dimensions> class NdarrayMetadata {
 
 	public:
@@ -154,11 +150,6 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 				shared_ptr<T>(this->data_buffer, this->data_buffer.get()+offset_to_data_buffer), shape, strides);
 		}
 
-<<<<<<< HEAD
-		// T calc_size(array<T, num_dimensions> a){
-		// 	return std::accumulate(a.begin(), a.end(), 1, std::multiplies<T>());
-		// }
-=======
 		iterator begin(){
 			return iterator(&data_buffer.get()[0], shape, strides);
 		}
@@ -185,7 +176,6 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 			return *this;
 		}
 
->>>>>>> 0bb32614de84b32dd3865f44ca27930c23cf3222
 };
 
 
