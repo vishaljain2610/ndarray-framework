@@ -1,6 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <numeric>
+#include <assert.h>
 
 #include "slice.hpp"
 #include "ndarray.hpp"
@@ -35,6 +36,15 @@ void assignment_related(){
 	// for(size_t i = 0;i<array3dalloutput.total_size;i++){
 	// 	cout <<array3dalloutput.data_buffer.get()[i] << " ";
 	// }
+	array3d(2, 1, 1) = 2;
+	for (auto element: array3d){
+		if(element == 2){
+			cout << "yay" << endl;
+		} 
+	}
+	auto array2d = array3d[2];
+	auto array1d = array2d[1];
+	auto array1d2 = array3d[2][1];
 }
 
 void slice_related(){
@@ -49,7 +59,11 @@ void slice_related(){
 
 	auto slicee = array3d(range(0, 5, 2), ellipsis(), end());
 	slicee = array3d(ellipsis(), all(), range(0, 5, 2), end());
-
+	slicee(ellipsis()) = 7;
+	// checking iterator
+	for (auto element: slicee){
+		assert(element == 7);
+	}
 }
 
 int main()
