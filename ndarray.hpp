@@ -9,14 +9,20 @@
 #include<string.h> 
 
 #include "slice.hpp"
+#include "nditer.hpp"
 
 using namespace std;
+
 
 template<typename T, size_t num_dimensions> T calc_size(array<T, num_dimensions> a);
 
 template<typename T, size_t num_dimensions> class NdarrayMetadata {
 
 	public:
+
+		// for iterator
+		typedef NdIter<T, num_dimensions> iterator;
+
 		size_t total_size;
 		size_t offset_to_data_buffer;
 		// https://docs.microsoft.com/en-us/cpp/cpp/how-to-create-and-use-shared-ptr-instances?view=vs-2017
@@ -56,6 +62,10 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 			va_end(args);
 
 			return this->data_buffer.get()[offset_to_data_buffer];
+		}
+
+		NdarrayMetadata<T, num_dimensions> operator()(Slice<ellipsisStr> slice){
+			return NdarrayMetadata<T,num_dimensions>(*this);
 		}
 
 		template<const char* sliceType>
@@ -138,6 +148,32 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 
 			return NdarrayMetadata<T, num_dimensions-1>(total_size, offset_to_data_buffer, 
 					shared_ptr<T>(this->data_buffer, this->data_buffer.get()+offset_to_data_buffer), shape, strides);
+		}
+
+		iterator begin(){
+			return iterator(&data_buffer.get()[0], shape, strides);
+		}
+
+		iterator end(){
+			return iterator(&data_buffer.get()[shape[0]*strides[0]], shape, strides);
+		}
+
+		iterator begin() const {
+			return iterator(&data_buffer.get()[0], shape, strides);
+		}
+
+		iterator end() const {
+			return iterator(&data_buffer.get()[shape[0]*strides[0]], shape, strides);
+		}
+
+		NdarrayMetadata<T, num_dimensions>& operator=(T& other){
+			fill(this->begin(), this->end(), other);
+			return *this;
+		}
+
+		NdarrayMetadata<T, num_dimensions>& operator=(const T& other){
+			fill(this->begin(), this->end(), other);
+			return *this;
 		}
 
 };
