@@ -10,6 +10,7 @@
 
 #include "slice.hpp"
 #include "nditer.hpp"
+#include "exceptions.hpp"
 
 using namespace std;
 
@@ -155,7 +156,10 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 		}
 
 		iterator end(){
-			return iterator(&data_buffer.get()[shape[0]*strides[0]], shape, strides);
+			cout << "THIS IS THE END" << shape[0]*removeZeros(strides)[0] << endl;
+			cout << "removeZeros" << removeZeros(strides)[0] << endl;
+			cout << "shape[0]*" << shape[0] << endl;
+			return iterator(&data_buffer.get()[shape[0]*removeZeros(strides)[0]], shape, strides);
 		}
 
 		iterator begin() const {
@@ -163,7 +167,8 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 		}
 
 		iterator end() const {
-			return iterator(&data_buffer.get()[shape[0]*strides[0]], shape, strides);
+			cout << "THIS IS THE END" << shape[0]*removeZeros(strides)[0] << endl;
+			return iterator(&data_buffer.get()[shape[0]*removeZeros(strides)[0]], shape, strides);
 		}
 
 		NdarrayMetadata<T, num_dimensions>& operator=(T& other){
@@ -174,6 +179,25 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 		NdarrayMetadata<T, num_dimensions>& operator=(const T& other){
 			fill(this->begin(), this->end(), other);
 			return *this;
+		}
+
+		template<size_t M>
+		NdarrayMetadata<T, M> broadcastTo(const array<size_t, M> newshape) const {
+			cout << "in ndarray broadcastTo " << "\n";
+			array<size_t, M> newstrides;
+			std::fill(newstrides.begin(), newstrides.end(), 0);
+		 	cout << "newstrides: " << newstrides << endl;
+			auto extra_dimensions = newshape.size() - shape.size();
+			for (int64_t i=shape.size()-1; i>=0; --i){
+				if (newshape[i+extra_dimensions] == shape[i]){
+					newstrides[i+extra_dimensions] = strides[i];
+				} else if (shape[i] != 1){
+					throw ValueError();
+				}
+			}
+			cout << "newstrides: " << newstrides << endl;
+			cout << "newshape: " << newshape << endl;
+			return NdarrayMetadata<T, M>(calc_size(newshape), this->offset_to_data_buffer, this->data_buffer, newshape, newstrides);
 		}
 
 };
@@ -191,6 +215,39 @@ ostream& operator<< (ostream& stream, array<T, N>arg ) {
 	stream << ')';
 	return stream;
 }
+
+// template<typename T, size_t N>
+// void printArr (NdarrayMetadata<T, N> arg ) {
+// 	cout << '[';
+// 	auto stride = arg.strides;
+// 	for(size_t dim = 0; dim < N; dim++){
+// 		cout << dim << endl;
+// 		cout << '[';
+// 		// for (size_t i = dim; i < arg.total_size; i+stride[dim]){
+// 		cout  << arg(dim);
+// 		// 	cout  << ", ";
+// 		// }
+// 		cout  << " ]";
+// 	}
+// 	cout  << ']';
+// }
+
+// template<typename T, size_t N>
+// ostream& operator<< (ostream& stream, NdarrayMetadata<T, N> arg ) {
+// 	stream << '[';
+// 	auto stride = arg.strides;
+// 	for(size_t dim = 0; dim < N; dim++){
+// 		cout << dim << endl;
+// 		stream << '[';
+// 		for (size_t i = dim; i < arg.total_size; i+stride[dim]){
+// 			stream << arg[i];
+// 			stream << ", ";
+// 		}
+// 		stream << " ]";
+// 	}
+// 	stream << ']';
+// 	return stream;
+// }
 
 template<typename T, size_t num_dimensions>
 T calc_size(array<T, num_dimensions> a){
