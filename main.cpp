@@ -5,13 +5,37 @@
 
 #include "slice.hpp"
 #include "ndarray.hpp"
+#include "arithematic.hpp"
+#include "helperfunctions.hpp"
+#include "methods.hpp"
 
 using namespace std;
 
 void assignment_related(){
-	array<size_t, 3> shape3 = {3, 3, 3};
-	vector<int64_t> allocated_memory3(calc_size<size_t, 3>(shape3));
-	auto array3d = create_array<int64_t, 3>(allocated_memory3.data(), shape3);
+	array<size_t, 2> shape3 = {1,6};
+	vector<int64_t> allocated_memory3(calc_size<size_t, 2>(shape3));
+	auto array3d = create_array<int64_t, 2>(allocated_memory3.data(), shape3);
+	
+	for(size_t i = 0;i<array3d.total_size;i++){
+		array3d.data_buffer.get()[i] = i;
+	}
+	auto array3dsumoutput = transpose(array3d);
+	cout << array3dsumoutput.shape;
+		
+	for(size_t i = 0;i<array3dsumoutput.total_size;i++){
+		cout << array3dsumoutput.data_buffer.get()[i];
+	}
+	// auto array3dalloutput = byteswap(array3d);
+
+
+	// array<size_t, 3> index = {1,4,2};
+	
+	// array<size_t, 3> value = {67,4,21};
+	// string mode = "clip";
+	// put(array3d, index,value, mode);
+	// for(size_t i = 0;i<array3dalloutput.total_size;i++){
+	// 	cout <<array3dalloutput.data_buffer.get()[i] << " ";
+	// }
 	array3d(2, 1, 1) = 2;
 	for (auto element: array3d){
 		if(element == 2){
@@ -45,7 +69,7 @@ void slice_related(){
 int main()
 {	
 	assignment_related();
-	slice_related();
+	// slice_related();
 	return 0;
 }
 
