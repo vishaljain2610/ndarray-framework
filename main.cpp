@@ -12,39 +12,14 @@
 using namespace std;
 
 void assignment_related(){
-	array<size_t, 2> shape3 = {1,6};
-	vector<int64_t> allocated_memory3(calc_size<size_t, 2>(shape3));
-	auto array3d = create_array<int64_t, 2>(allocated_memory3.data(), shape3);
+	array<size_t,3> shape3 = {2,4,5};
 	
-	for(size_t i = 0;i<array3d.total_size;i++){
-		array3d.data_buffer.get()[i] = i;
-	}
-	auto array3dsumoutput = transpose(array3d);
-	cout << array3dsumoutput.shape;
-		
-	for(size_t i = 0;i<array3dsumoutput.total_size;i++){
-		cout << array3dsumoutput.data_buffer.get()[i];
-	}
-	// auto array3dalloutput = byteswap(array3d);
-
-
-	// array<size_t, 3> index = {1,4,2};
+	vector<float_t> allocated_memory3(calc_size<size_t,3>(shape3));
+	auto array3d = create_array<float_t,3>(allocated_memory3.data(), shape3);
 	
-	// array<size_t, 3> value = {67,4,21};
-	// string mode = "clip";
-	// put(array3d, index,value, mode);
-	// for(size_t i = 0;i<array3dalloutput.total_size;i++){
-	// 	cout <<array3dalloutput.data_buffer.get()[i] << " ";
-	// }
-	array3d(2, 1, 1) = 2;
 	for (auto element: array3d){
-		if(element == 2){
-			cout << "yay" << endl;
-		} 
+		cout << element << " ";	 
 	}
-	auto array2d = array3d[2];
-	auto array1d = array2d[1];
-	auto array1d2 = array3d[2][1];
 }
 
 void slice_related(){
@@ -65,11 +40,36 @@ void slice_related(){
 		assert(element == 7);
 	}
 }
+void methods_related(){
+	array<size_t, 3> shape3 = {2,3,4};
+	vector<int> allocated_memory3(calc_size<size_t, 3>(shape3));
+	auto array3d = create_array<int, 3>(allocated_memory3.data(), shape3);
+	for(size_t i = 0;i<array3d.total_size;i++){	
+		array3d.data_buffer.get()[i] = i-5;
+	}
+
+	auto array1d = numc::clip(array3d,3,10);
+
+	array<size_t, 3> shape2 = {2,3,4};
+	vector<int> allocated_memory2(calc_size<size_t, 3>(shape2));
+	auto array2d = create_array<int, 3>(allocated_memory2.data(), shape2);
+
+	cout << endl;
+	for(auto elem : array1d){
+		cout << elem << " ";
+	}
+
+	cout << " \n -- \n";
+	for(auto elem : array3d){
+		cout << elem << " ";
+	}
+}
 
 int main()
 {	
 	assignment_related();
-	// slice_related();
+	methods_related();
+	slice_related();
 	return 0;
 }
 

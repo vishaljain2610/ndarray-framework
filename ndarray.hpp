@@ -16,6 +16,12 @@ using namespace std;
 
 template<typename T, size_t num_dimensions> T calc_size(array<T, num_dimensions> a);
 
+template<typename T, size_t num_dimensions> array<T, num_dimensions> calc_strides(array<T, num_dimensions> a);
+
+template<typename T> void _initDeleter(T* pointer);
+
+template<typename T> void _deleteArray(T* pointer);
+
 template<typename T, size_t num_dimensions> class NdarrayMetadata {
 
 	public:
@@ -37,14 +43,38 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 		data_buffer(data_buffer_),
 		shape(shape_),
 		strides(strides_){
-			// cout << "-------------------------in "<< "\n";
-			// cout << total_size_ << "\n";
-			// cout << offset_to_data_buffer_ << "\n";
-			// cout << data_buffer_ << "\n";
-			// cout << shape_ << "\n";
-			// cout << strides_ << "\n";
-			// cout << "----------------ending" << "\n";
+			cout<<"\n" << "-------------------------in "<< "\n";
+			cout << total_size_ << "\n";
+			cout << offset_to_data_buffer_ << "\n";
+			cout << data_buffer_ << "\n";
+			cout << shape_ << "\n";
+			cout << strides_ << "\n";
+			cout << "----------------ending" << "\n";
 		}
+
+		NdarrayMetadata(array<size_t, num_dimensions> shape_):
+		total_size(0),
+		offset_to_data_buffer(0),
+		shape(shape_),
+		strides(array<size_t, num_dimensions>()){
+			vector<T> allocated_memory3(calc_size<size_t, num_dimensions>(shape_));
+			auto destructor_=_initDeleter<T>;
+			auto pointer_to_allocated_memory_ = allocated_memory3.data();
+			
+			this->strides = calc_strides(shape_);
+			this->total_size = calc_size(shape_);
+			data_buffer =  shared_ptr<T>(pointer_to_allocated_memory_, destructor_);
+			
+			cout << "-------------------------in "<< "\n";
+			cout << total_size << "\n";
+			cout << offset_to_data_buffer << "\n";
+			cout << data_buffer << "\n";
+			cout << shape << "\n";
+			cout << strides << "\n";
+			cout << "----------------ending" << "\n";
+		}
+
+
 
 		NdarrayMetadata():
 		total_size(0),
@@ -156,9 +186,9 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 		}
 
 		iterator end(){
-			cout << "THIS IS THE END" << shape[0]*removeZeros(strides)[0] << endl;
-			cout << "removeZeros" << removeZeros(strides)[0] << endl;
-			cout << "shape[0]*" << shape[0] << endl;
+			// cout << "THIS IS THE END" << shape[0]*removeZeros(strides)[0] << endl;
+			// cout << "removeZeros" << removeZeros(strides)[0] << endl;
+			// cout << "shape[0]*" << shape[0] << endl;
 			return iterator(&data_buffer.get()[shape[0]*removeZeros(strides)[0]], shape, strides);
 		}
 
@@ -167,7 +197,7 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 		}
 
 		iterator end() const {
-			cout << "THIS IS THE END" << shape[0]*removeZeros(strides)[0] << endl;
+			// cout << "THIS IS THE END" << shape[0]*removeZeros(strides)[0] << endl;
 			return iterator(&data_buffer.get()[shape[0]*removeZeros(strides)[0]], shape, strides);
 		}
 
@@ -200,6 +230,493 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 			return NdarrayMetadata<T, M>(calc_size(newshape), this->offset_to_data_buffer, this->data_buffer, newshape, newstrides);
 		}
 
+
+
+
+	// Methods 
+    bool all(){
+			// bool output = std::all_of(begin(),end(), [](T elem) {return (elem == 0 || elem == false); });
+			auto iter = data_buffer.get();
+			for(size_t i =0;i<total_size;i++){
+				cout << iter[i] << " ";
+				if(!iter[i])
+					return false;
+			}
+			return true;
+    }
+
+    bool any(){
+			auto iter = data_buffer.get();
+			for(size_t i =0;i<total_size;i++){
+				cout << iter[i]+1 << " ";
+				if((iter[i]+1))
+					return true;
+			}
+			return false;
+    }
+
+    T argmax(){
+
+        auto output = 0;
+        auto input_iter = this->data_buffer.get();
+        for(size_t i = 0;i<this->total_size;i++){
+            if(output < input_iter[i])
+                output = i;
+        }
+
+        return output;
+    }
+		
+    T argmin(){
+
+        auto output = 0;
+        auto input_iter = this->data_buffer.get();
+        for(size_t i = 0;i<this->total_size;i++){
+            if(output > input_iter[i])
+                output = i;
+        }
+
+        return output;
+    }
+
+		NdarrayMetadata<T, num_dimensions> byteswap(){
+        auto iter_input = this->data_buffer.get();    
+        
+        auto output = NdarrayMetadata<T, num_dimensions>(this->shape);    
+        auto iter_output = output.data_buffer.get();
+        
+        for (size_t i =0; i<this->total_size;i++){
+            iter_output[i] = __builtin_bswap64 (iter_input[i]);
+        }
+        return output;
+    }
+
+		NdarrayMetadata<T, num_dimensions> clip(int64_t min,int64_t max){    
+
+        auto output = NdarrayMetadata<T, num_dimensions>(this->shape);
+				auto iter_output = output.data_buffer.get();
+
+        for(size_t i=0;i<this->total_size;i++){
+            if(iter_output[i] < min)
+                iter_output[i] = min;
+            if(iter_output[i] > max)
+                iter_output[i] = max;
+        }   
+        return output;
+    }
+
+		bool contains(int64_t value){
+
+			for(size_t i =0;i< this->total_size;i++){
+				if(this->data_buffer.get()[i] == value)
+						return true;
+			}
+			return false;
+		}
+
+		NdarrayMetadata<T, num_dimensions> cumprod(){
+			
+        auto output = NdarrayMetadata<T, num_dimensions>(this->shape);
+				
+				auto out_iter = output.data_buffer.get();
+				out_iter[0] = this->data_buffer.get()[0];
+				for(size_t i = 0;i<this->total_size;i++)
+					out_iter[i] = out_iter[i-1]*this->data_buffer.get()[i];
+				
+				return output;
+		}
+
+		NdarrayMetadata<T, num_dimensions> cumsum(){
+			
+        auto output = NdarrayMetadata<T, num_dimensions>(this->shape);
+				
+				auto out_iter = output.data_buffer.get();
+				out_iter[0] = this->data_buffer.get()[0];
+				for(size_t i = 0;i<this->total_size;i++)
+					out_iter[i] = out_iter[i-1]+this->data_buffer.get()[i];
+				
+				return output;
+		}
+		
+		void dumb(string filename){
+
+		}
+
+		bool isempty() const {
+				return (this->total_size == 0);
+		}
+
+
+		void fill_array(T inFillValue) {
+				std::fill(this->begin(), this->end(), inFillValue);
+		}
+
+		T item() const
+		{
+				if (this->total_size == 1)
+				{
+						return this->data_buffer.get()[0];
+				}
+				else
+				{
+						throw SizeError();
+				}
+		}
+
+		void itemset(array<size_t, num_dimensions> indices,T input){
+				
+				auto offset_to_data_buffer = 0;
+				size_t strideIndex = 0;
+				while(strideIndex<num_dimensions) {
+					offset_to_data_buffer = offset_to_data_buffer + indices[strideIndex]*this->strides[strideIndex];
+					strideIndex++;
+				}
+				cout << offset_to_data_buffer << endl;
+				this->data_buffer.get()[offset_to_data_buffer] = input;
+		}
+
+		T max(){
+        T output = 0;
+        auto input_iter = this->data_buffer.get();
+        for(size_t i = 0;i<this->total_size;i++){
+            if(output < input_iter[i])
+                output = input_iter[i];
+        }
+				return output;
+		}
+
+		T min(){
+        T output = 0;
+        auto input_iter = this->data_buffer.get();
+        for(size_t i = 0;i<this->total_size;i++){
+            if(output > input_iter[i])
+                output = input_iter[i];
+        }
+				return output;
+		}
+
+		double mean(){
+
+        double output = static_cast<double>(std::accumulate(this->begin(), this->end(), 0.0));;
+				return output/static_cast<double>(this->total_size);
+		}
+
+		double median(){
+
+				auto list = NdarrayMetadata<T, num_dimensions>(this->shape);
+        std::nth_element(this->begin(), this->begin()+ (this->total_size)/2, this->end());
+
+				return list.data_buffer.get()[(this->total_size)/2];
+		}
+
+		size_t nbytes() {
+			return static_cast<size_t>(sizeof(T) * this->total_size);
+		}
+
+		NdarrayMetadata<T, 1> nonzero(){
+			static_assert(std::numeric_limits<T>::is_integer, "ERROR: &Operator: can only use with integer types.");
+
+			array<size_t, 1> shape = { this->total_size };
+			auto output = NdarrayMetadata<T,1>(shape);
+			
+			for(size_t i =0,j=0;i<this->total_size;i++){
+				if(this->data_buffer.get()[i] != static_cast<T>(0))
+					output.data_buffer.get()[j++] = i;
+			}
+			return output;
+		}
+
+		void ones(){
+			this->fill_array(1);
+		}
+
+		void partition(size_t k){
+			if(k > this->total_size){
+				throw ArrayOutOfBounds();
+			}
+			std::nth_element(this->begin(), this->begin() + k, this->end());
+			return;
+		}
+
+		NdarrayMetadata<T, num_dimensions> prod(){
+			
+        auto output = NdarrayMetadata<T, num_dimensions>(this->shape);
+				
+				auto out = this->data_buffer.get()[0];
+				for(size_t i = 0;i<this->total_size;i++)
+					out*=this->data_buffer.get()[i];
+				
+				output.data_buffer.get()[0] = out;
+				return output;
+		}
+
+		NdarrayMetadata<T, num_dimensions> ptp(){
+			
+        auto output = NdarrayMetadata<T, num_dimensions>(this->shape);
+				
+				const std::pair<const T*, const T*> result = std::minmax_element(this->begin(), this->end());
+
+				output.data_buffer.get()[0] = *result.second - *result.first;
+				return output;
+		}
+
+		void put (size_t index,T input){
+			this->data_buffer.get()[index] = input;
+		}
+
+		void put (NdarrayMetadata<size_t,1> index,T input){
+			for(auto elem : index)
+				this->put(this->data_buffer.get()[elem],input);	
+		}
+
+		void put (NdarrayMetadata<size_t,1> index,NdarrayMetadata<size_t,1> input){
+
+			if (index.total_size != input.total_size)
+        throw UnequalSizeError();
+      auto index_iter = index.data_buffer.get();
+			for(auto i = 0;i<input.total_size;i++)
+					this->put(this->data_buffer.get()[index_iter[i]], input.data_buffer.get()[i]);
+		}
+
+		template<size_t new_num_dimensions>
+		NdarrayMetadata<T, new_num_dimensions> reshape(array<size_t ,new_num_dimensions> NewShape){
+			auto new_dim = calc_size(NewShape);
+			if(this->total_size != new_dim)
+					throw UnequalSizeError();
+			
+			cout << "Reshape \n";
+			auto output = NdarrayMetadata<T, new_num_dimensions>(NewShape);
+			 
+			auto output_iter = output.data_buffer.get();
+			auto this_iter = this->data_buffer.get();
+			for(size_t i =0;i<output.total_size;i++){
+				output_iter[i] = this_iter[i];
+			}
+
+			return output;
+		}
+
+		template<size_t new_num_dimensions>
+		void resize(array<size_t ,new_num_dimensions> NewShape){
+			auto new_dim = calc_size(NewShape);
+			if(this->total_size != new_dim)
+					throw UnequalSizeError();
+			
+		}
+
+		NdarrayMetadata<T, 1> ravel(){
+			array<size_t, 1> shape = {this->total_size};
+			auto output = NdarrayMetadata(shape);
+			auto iter_input = this->data_buffer.get();
+			auto iter_output = output.data_buffer.get();
+
+			for (size_t i=0;i<this->total_size;i++)
+					iter_output[i] = iter_input[i] ;
+
+			return output;
+		}
+
+		template <size_t M>
+		array<size_t,M> searchsorted(array<T,M> Elems, string Side = "left"){
+			if(num_dimensions != 1)
+				throw DimensionError();
+			array<size_t,M> indices;
+			cout << Elems << endl;
+			auto iter = this->data_buffer.get();
+			size_t j=0;
+			std::transform(Side.begin(), Side.end(), Side.begin(), ::tolower);
+			for(size_t i =0;i< this->total_size;i++)
+			{
+					if(iter[i] >= Elems[j]){
+						if(Side == "left")
+							indices[j] = i;
+						else if(Side == "right")
+							indices[j] = i+1;
+						else 
+							throw invalid_argument("Invalid Side");
+						j++;
+					}
+			}
+			if(j<M){
+				for(size_t i =j;i<M;i++)
+					indices[j] = this->total_size+1;
+			}
+			return indices;
+		}
+
+		// template<typename TOut>
+		// NdarrayMetadata<TOut,num_dimensions> astype(typename TOut) {
+		// 	auto returnArray =  NdarrayMetadata<TOut,num_dimensions>(this->shape);
+		// 	for(size_t i =0;i<this->total_size;i++)
+		// 		returnArray.data_buffer.get()[i] =  static_cast<TOut>(this->data_buffer.get()[i])
+		// 	return std::move(returnArray);
+
+		// }	
+
+		NdarrayMetadata<T,num_dimensions>& operator&=(NdarrayMetadata<T,num_dimensions> input){
+			static_assert(std::numeric_limits<T>::is_integer, "ERROR: &Operator: can only use with integer types.");
+
+			if(this->shape != input.shape){
+				throw UnequalShapeError();
+			}
+
+			std::transform(begin(), end(), input.begin(),begin(), std::bit_and<T>());
+			return *this;
+		}
+
+		NdarrayMetadata<T,num_dimensions>& operator&=(T input){
+			static_assert(std::numeric_limits<T>::is_integer, "ERROR: &Operator: can only use with integer types.");
+
+			std::for_each(begin(), end(), [=](T& value) noexcept -> T { return value &= input; });
+			return *this;
+		}
+
+		NdarrayMetadata<T,num_dimensions>& operator&(T input){
+			return (*this &= input);
+		}
+
+		NdarrayMetadata<T,num_dimensions>& operator&(NdarrayMetadata<T,num_dimensions> input){
+			return (*this &= input);
+		}
+
+
+
+		NdarrayMetadata<T,num_dimensions>& operator|=(NdarrayMetadata<T,num_dimensions> input){
+			static_assert(std::numeric_limits<T>::is_integer, "ERROR: | Operator: can only use with integer types.");
+
+			if(this->shape != input.shape){
+				throw UnequalShapeError();
+			}
+
+			std::transform(begin(), end(), input.begin(),begin(), std::bit_or<T>());
+			return *this;
+		}
+
+		NdarrayMetadata<T,num_dimensions>& operator|=(T input){
+			static_assert(std::numeric_limits<T>::is_integer, "ERROR: | Operator: can only use with integer types.");
+
+			std::for_each(begin(), end(), [=](T& value) noexcept -> T { return value |= input; });
+			return *this;
+		}
+
+		NdarrayMetadata<T,num_dimensions>& operator|(T input){
+			return (*this |= input);
+		}
+
+		NdarrayMetadata<T,num_dimensions>& operator|(NdarrayMetadata<T,num_dimensions> input){
+			return (*this |= input);
+		}
+
+
+
+		NdarrayMetadata<T,num_dimensions>& operator^=(NdarrayMetadata<T,num_dimensions> input){
+			static_assert(std::numeric_limits<T>::is_integer, "ERROR: ^ Operator: can only use with integer types.");
+
+			if(this->shape != input.shape){
+				throw UnequalShapeError();
+			}
+
+			std::transform(begin(), end(), input.begin(),begin(), std::bit_xor<T>());
+			return *this;
+		}
+
+		NdarrayMetadata<T,num_dimensions>& operator^=(T input){
+			static_assert(std::numeric_limits<T>::is_integer, "ERROR: ^ Operator: can only use with integer types.");
+
+			std::for_each(begin(), end(), [=](T& value) noexcept -> T { return value ^= input; });
+			return *this;
+		}
+
+		NdarrayMetadata<T,num_dimensions>& operator^(T input){
+			return (*this ^= input);
+		}
+
+		NdarrayMetadata<T,num_dimensions>& operator^(NdarrayMetadata<T,num_dimensions> input){
+			return (*this ^= input);
+		}
+
+
+		NdarrayMetadata<T,num_dimensions>& operator~(){
+			static_assert(std::numeric_limits<T>::is_integer, "ERROR: ~ Operator: can only use with integer types.");
+			std::transform(begin(), end(), begin(), [](T value) noexcept -> T { return ~value; });
+			return *this;
+		}
+
+
+
+		NdarrayMetadata<T,num_dimensions> operator<(T inValue) {
+			
+			auto returnArray =  NdarrayMetadata<T,num_dimensions>(this->shape);
+			std::transform(begin(), end(), returnArray.begin(),
+					[inValue](T value) noexcept -> T { return value < inValue; });
+			return std::move(returnArray);
+		}
+
+		NdarrayMetadata<T,num_dimensions> operator<=(T inValue) {
+			
+			auto returnArray =  NdarrayMetadata<T,num_dimensions>(this->shape);
+			std::transform(begin(), end(), returnArray.begin(),
+					[inValue](T value) noexcept -> T { return value <= inValue; });
+			return std::move(returnArray);
+		}
+
+		NdarrayMetadata<T,num_dimensions>& operator<(NdarrayMetadata<T,num_dimensions> input){
+
+			if(this->shape != input.shape){
+				throw UnequalShapeError();
+			}
+
+			std::transform(begin(), end(), input.begin(),begin(), std::less<T>());
+			return *this;
+		}
+
+		NdarrayMetadata<T,num_dimensions>& operator<=(NdarrayMetadata<T,num_dimensions> input){
+
+			if(this->shape != input.shape){
+				throw UnequalShapeError();
+			}
+
+			std::transform(begin(), end(), input.begin(),begin(), std::less_equal<T>());
+			return *this;
+		}
+
+
+
+		NdarrayMetadata<T,num_dimensions> operator>(T inValue) {
+			
+			auto returnArray =  NdarrayMetadata<T,num_dimensions>(this->shape);
+			std::transform(begin(), end(), returnArray.begin(),
+					[inValue](T value) noexcept -> T { return value > inValue; });
+			return std::move(returnArray);
+		}
+
+		NdarrayMetadata<T,num_dimensions> operator>=(T inValue) {
+			
+			auto returnArray =  NdarrayMetadata<T,num_dimensions>(this->shape);
+			std::transform(begin(), end(), returnArray.begin(),
+					[inValue](T value) noexcept -> T { return value >= inValue; });
+			return std::move(returnArray);
+		}
+
+		NdarrayMetadata<T,num_dimensions>& operator>(NdarrayMetadata<T,num_dimensions> input){
+
+			if(this->shape != input.shape){
+				throw UnequalShapeError();
+			}
+
+			std::transform(begin(), end(), input.begin(),begin(), std::greater<T>());
+			return *this;
+		}
+
+		NdarrayMetadata<T,num_dimensions>& operator>=(NdarrayMetadata<T,num_dimensions> input){
+
+			if(this->shape != input.shape){
+				throw UnequalShapeError();
+			}
+
+			std::transform(begin(), end(), input.begin(),begin(), std::greater_equal<T>());
+			return *this;
+		}
 };
 
 
@@ -281,5 +798,16 @@ NdarrayMetadata<T, num_dimensions> create_array(T* pointer_to_allocated_memory_,
 	return NdarrayMetadata<T,num_dimensions>(calc_size(shape_), 0, shared_ptr<T>(pointer_to_allocated_memory_, destructor_),
 						shape_, calc_strides(shape_));
 }
+
+
+template<typename T, size_t num_dimensions>
+NdarrayMetadata<T, num_dimensions> create_array(array<size_t, num_dimensions> shape_) {
+	
+	vector<T> allocated_memory(calc_size<size_t, num_dimensions>(shape_));
+	auto destructor_=_initDeleter<T>;
+	auto pointer_to_allocated_memory_ = allocated_memory.data();
+	return NdarrayMetadata<T,num_dimensions>(calc_size(shape_), 0, shared_ptr<T>(pointer_to_allocated_memory_, destructor_),shape_, calc_strides(shape_));
+}
+
 
 #endif
