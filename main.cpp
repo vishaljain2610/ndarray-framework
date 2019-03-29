@@ -54,7 +54,6 @@ void methods_related(){
 	vector<int> allocated_memory2(calc_size<size_t, 3>(shape2));
 	auto array2d = create_array<int, 3>(allocated_memory2.data(), shape2);
 
-	cout << endl;
 	for(auto elem : array1d){
 		cout << elem << " ";
 	}
