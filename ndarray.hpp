@@ -7,14 +7,20 @@
 #include <memory>
 #include <cstdarg>
 #include<string.h> 
+#include <math.h>
+ 
+#include <cmath>
 
 #include "slice.hpp"
 #include "nditer.hpp"
 #include "exceptions.hpp"
+// #include "helperfunctions.hpp"
 
 using namespace std;
 
 template<typename T, size_t num_dimensions> T calc_size(array<T, num_dimensions> a);
+
+template<typename T, size_t num_dimensions> array<T, (num_dimensions-1)> removeArrayElement(array<T, num_dimensions> a, size_t index);
 
 template<typename T, size_t num_dimensions> array<T, num_dimensions> calc_strides(array<T, num_dimensions> a);
 
@@ -44,8 +50,8 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 		shape(shape_),
 		strides(strides_){
 			cout<<"\n" << "-------------------------in "<< "\n";
-			cout << total_size_ << "\n";
-			cout << offset_to_data_buffer_ << "\n";
+			// cout << total_size_ << "\n";
+			// cout << offset_to_data_buffer_ << "\n";
 			cout << data_buffer_ << "\n";
 			cout << shape_ << "\n";
 			cout << strides_ << "\n";
@@ -63,11 +69,31 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 			
 			this->strides = calc_strides(shape_);
 			this->total_size = calc_size(shape_);
-			data_buffer =  shared_ptr<T>(pointer_to_allocated_memory_, destructor_);
+			this->data_buffer =  shared_ptr<T>(pointer_to_allocated_memory_, destructor_);
 			
 			cout << "-------------------------in "<< "\n";
-			cout << total_size << "\n";
-			cout << offset_to_data_buffer << "\n";
+			// cout << total_size << "\n";
+			// cout << offset_to_data_buffer << "\n";
+			cout << data_buffer << "\n";
+			cout << shape << "\n";
+			cout << strides << "\n";
+			cout << "----------------ending" << "\n";
+		}
+
+		NdarrayMetadata(T* pointer_to_allocated_memory_,array<size_t, num_dimensions> shape_):
+		total_size(0),
+		offset_to_data_buffer(0),
+		shape(shape_),
+		strides(array<size_t, num_dimensions>()){
+			auto destructor_=_initDeleter<T>;
+			
+			this->strides = calc_strides(shape_);
+			this->total_size = calc_size(shape_);
+			this->data_buffer =  shared_ptr<T>(pointer_to_allocated_memory_, destructor_);
+			
+			cout << "-------------------------in "<< "\n";
+			// cout << total_size << "\n";
+			// cout << offset_to_data_buffer << "\n";
 			cout << data_buffer << "\n";
 			cout << shape << "\n";
 			cout << strides << "\n";
@@ -212,7 +238,8 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 		}
 
 		template<size_t M>
-		NdarrayMetadata<T, M> broadcastTo(const array<size_t, M> newshape) const {
+		NdarrayMetadata<T, M> 
+		broadcastTo(const array<size_t, M> newshape) const {
 			cout << "in ndarray broadcastTo " << "\n";
 			array<size_t, M> newstrides;
 			std::fill(newstrides.begin(), newstrides.end(), 0);
@@ -230,7 +257,9 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 			return NdarrayMetadata<T, M>(calc_size(newshape), this->offset_to_data_buffer, this->data_buffer, newshape, newstrides);
 		}
 
-
+		~NdarrayMetadata(){
+			_deleteArray(data_buffer.get());
+		}
 
 
 	// Methods 
@@ -245,14 +274,78 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 			return true;
     }
 
+    NdarrayMetadata<T, num_dimensions-1> all(size_t axis){
+			array<size_t,num_dimensions-1> output_shape = removeArrayElement(this->shape,axis);
+			vector<T> allocated_memory3(calc_size<size_t,num_dimensions-1>(output_shape));
+			auto output = NdarrayMetadata<T,num_dimensions-1>(allocated_memory3.data(), output_shape);
+
+			auto output_iter = output.data_buffer.get();
+			std::fill(output.begin(), output.end(), 1);
+			auto input_iter = this->data_buffer.get();
+			size_t axis_stride= this->strides[axis];
+			size_t axis_shape = this->shape[axis];
+			
+			size_t prev_axis_stride = this->strides[axis-1];
+			size_t prev_axis_prod = 1;
+			
+			for(size_t i=0;i<axis;i++)
+					prev_axis_prod*=this->shape[i];
+
+			for(size_t i = 0;i<prev_axis_prod;i++){
+					for(size_t j = 0;j<axis_shape;j++) {
+							for(size_t k = 0;k<axis_stride;k++) {
+									if(!input_iter[k + i*prev_axis_stride + j*axis_stride])
+											output_iter[k + i*prev_axis_stride/axis_shape] = 0;
+							}
+					}
+			}
+			for (auto element: 	output){
+					cout<<(element) << " ";
+			}
+
+			return output;
+    }
+
     bool any(){
 			auto iter = data_buffer.get();
 			for(size_t i =0;i<total_size;i++){
 				cout << iter[i]+1 << " ";
-				if((iter[i]+1))
+				if((iter[i] !=0) || (iter[i] !=false))
 					return true;
 			}
 			return false;
+    }
+
+    NdarrayMetadata<T, num_dimensions-1> any(size_t axis){
+			array<size_t,num_dimensions-1> output_shape = removeArrayElement(this->shape,axis);
+			vector<T> allocated_memory3(calc_size<size_t,num_dimensions-1>(output_shape));
+			auto output = NdarrayMetadata<T,num_dimensions-1>(allocated_memory3.data(), output_shape);
+
+			auto output_iter = output.data_buffer.get();
+			std::fill(output.begin(), output.end(), 0);
+			auto input_iter = this->data_buffer.get();
+			size_t axis_stride= this->strides[axis];
+			size_t axis_shape = this->shape[axis];
+			
+			size_t prev_axis_stride = this->strides[axis-1];
+			size_t prev_axis_prod = 1;
+			
+			for(size_t i=0;i<axis;i++)
+					prev_axis_prod*=this->shape[i];
+
+			for(size_t i = 0;i<prev_axis_prod;i++){
+					for(size_t j = 0;j<axis_shape;j++) {
+							for(size_t k = 0;k<axis_stride;k++) {
+									if(input_iter[k + i*prev_axis_stride + j*axis_stride] != 0 || input_iter[k + i*prev_axis_stride + j*axis_stride] != false)
+											output_iter[k + i*prev_axis_stride/axis_shape] = 1;
+							}
+					}
+			}
+			for (auto element: 	output){
+					cout<<(element) << " ";
+			}
+
+			return output;
     }
 
     T argmax(){
@@ -266,6 +359,7 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 
         return output;
     }
+
 		
     T argmin(){
 
@@ -279,6 +373,77 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
         return output;
     }
 
+    NdarrayMetadata<T, num_dimensions-1> argmin(size_t axis){
+			array<size_t,num_dimensions-1> output_shape = removeArrayElement(this->shape,axis);
+			vector<T> allocated_memory3(calc_size<size_t,num_dimensions-1>(output_shape));
+			auto output = NdarrayMetadata<T,num_dimensions-1>(allocated_memory3.data(), output_shape);
+
+			auto output_iter = output.data_buffer.get();
+			std::fill(output.begin(), output.end(), 0);
+			auto input_iter = this->data_buffer.get();
+			size_t axis_stride= this->strides[axis];
+			size_t axis_shape = this->shape[axis];
+			
+			size_t prev_axis_stride = this->strides[axis-1];
+			size_t prev_axis_prod = 1;
+			
+			for(size_t i=0;i<axis;i++)
+					prev_axis_prod*=this->shape[i];
+
+			cout  << endl << axis_shape << " " << axis_stride << endl;
+			for(size_t i = 0;i<prev_axis_prod;i++){
+					size_t min_index = 0;
+					for(size_t j = 0;j<axis_shape;j++) {
+							for(size_t k = 0;k<axis_stride;k++) {
+									if(input_iter[min_index] > input_iter[k + i*prev_axis_stride + j*axis_stride])
+										{
+											
+											min_index = k + i*prev_axis_stride + j*axis_stride;
+											output_iter[k + i*prev_axis_stride/axis_shape] = j;
+										}
+							}
+					}
+			}
+
+			cout << endl;
+			return output;
+    }
+
+		NdarrayMetadata<T, num_dimensions-1> argmax(size_t axis){
+			array<size_t,num_dimensions-1> output_shape = removeArrayElement(this->shape,axis);
+			vector<T> allocated_memory3(calc_size<size_t,num_dimensions-1>(output_shape));
+			auto output = NdarrayMetadata<T,num_dimensions-1>(allocated_memory3.data(), output_shape);
+
+			auto output_iter = output.data_buffer.get();
+			std::fill(output.begin(), output.end(), 0);
+			auto input_iter = this->data_buffer.get();
+			size_t axis_stride= this->strides[axis];
+			size_t axis_shape = this->shape[axis];
+			
+			size_t prev_axis_stride = this->strides[axis-1];
+			size_t prev_axis_prod = 1;
+			
+			for(size_t i=0;i<axis;i++)
+					prev_axis_prod*=this->shape[i];
+
+			cout  << endl << axis_shape << " " << axis_stride << endl;
+			for(size_t i = 0;i<prev_axis_prod;i++){
+					size_t index = 0;
+					for(size_t j = 0;j<axis_shape;j++) {
+							for(size_t k = 0;k<axis_stride;k++) {
+									if(input_iter[index] < input_iter[k + i*prev_axis_stride + j*axis_stride])
+										{
+											index = k + i*prev_axis_stride + j*axis_stride;
+											output_iter[k + i*prev_axis_stride/axis_shape] = j;
+										}
+							}
+					}
+			}
+
+			cout << endl;
+			return output;
+    }
+
 		NdarrayMetadata<T, num_dimensions> byteswap(){
         auto iter_input = this->data_buffer.get();    
         
@@ -290,6 +455,34 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
         }
         return output;
     }
+
+		NdarrayMetadata<T, num_dimensions>& sort(){
+			size_t axis = num_dimensions-1;
+    	auto input_iter = this->data_buffer.get();
+			size_t axis_stride= this->strides[axis];
+			size_t axis_shape = this->shape[axis];
+			
+			size_t prev_axis_stride = this->strides[axis-1];
+			size_t prev_axis_prod = 1;
+			
+			for(size_t i=0;i<axis;i++)
+			{
+				prev_axis_prod*=this->shape[i];
+			}		
+			// cout << endl << axis_shape ;
+			for(size_t i = 0;i<prev_axis_prod;i++){
+ 					for(size_t j = 0;j<axis_shape;j++) {
+							for(size_t k = 0;k<axis_stride;k++) {	
+								cout <<  input_iter[k + i*prev_axis_stride + j*axis_stride] << " ";
+							}
+							cout << " "<<endl;
+					}
+							cout << endl;
+			}
+
+
+			return *this;
+		}
 
 		NdarrayMetadata<T, num_dimensions> clip(int64_t min,int64_t max){    
 
@@ -313,6 +506,39 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 			}
 			return false;
 		}
+		
+		NdarrayMetadata<T, num_dimensions> cumprod(size_t axis){
+			auto output = NdarrayMetadata<T,num_dimensions>(this->shape);
+
+			auto output_iter = output.data_buffer.get();
+			std::fill(output.begin(), output.end(), 0);
+			auto input_iter = this->data_buffer.get();
+			size_t axis_stride= this->strides[axis];
+			size_t axis_shape = this->shape[axis];
+			
+			size_t prev_axis_stride = this->strides[axis-1];
+			size_t prev_axis_prod = 1;
+			
+			for(size_t i=0;i<axis;i++)
+					prev_axis_prod*=this->shape[i];
+
+			for(size_t i = 0;i<prev_axis_prod;i++){
+					for(size_t j = 0;j<axis_shape;j++) {
+							for(size_t k = 0;k<axis_stride;k++) {
+								if(!j)
+									output_iter[k + i*prev_axis_stride + j*axis_stride] *=input_iter[k + i*prev_axis_stride + j*axis_stride];
+								else
+									output_iter[k + i*prev_axis_stride + j*axis_stride] = output_iter[k + (i)*prev_axis_stride + (j-1)*axis_stride]*input_iter[k + i*prev_axis_stride + j*axis_stride];
+							}
+					}
+			}
+			// for (auto element: 	output){
+			// 		cout<<(element) << " ";
+			// }
+
+			cout << endl;
+			return output;
+    }
 
 		NdarrayMetadata<T, num_dimensions> cumprod(){
 			
@@ -326,6 +552,39 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 				return output;
 		}
 
+		NdarrayMetadata<T, num_dimensions> cumsum(size_t axis){
+			auto output = NdarrayMetadata<T,num_dimensions>(this->shape);
+
+			auto output_iter = output.data_buffer.get();
+			std::fill(output.begin(), output.end(), 0);
+			auto input_iter = this->data_buffer.get();
+			size_t axis_stride= this->strides[axis];
+			size_t axis_shape = this->shape[axis];
+			
+			size_t prev_axis_stride = this->strides[axis-1];
+			size_t prev_axis_prod = 1;
+			
+			for(size_t i=0;i<axis;i++)
+					prev_axis_prod*=this->shape[i];
+
+			for(size_t i = 0;i<prev_axis_prod;i++){
+					for(size_t j = 0;j<axis_shape;j++) {
+							for(size_t k = 0;k<axis_stride;k++) {
+								if(!j)
+									output_iter[k + i*prev_axis_stride + j*axis_stride] +=input_iter[k + i*prev_axis_stride + j*axis_stride];
+								else
+									output_iter[k + i*prev_axis_stride + j*axis_stride] = output_iter[k + (i)*prev_axis_stride + (j-1)*axis_stride]+input_iter[k + i*prev_axis_stride + j*axis_stride];
+							}
+					}
+			}
+			// for (auto element: 	output){
+			// 		cout<<(element) << " ";
+			// }
+
+			cout << endl;
+			return output;
+    }
+
 		NdarrayMetadata<T, num_dimensions> cumsum(){
 			
         auto output = NdarrayMetadata<T, num_dimensions>(this->shape);
@@ -335,6 +594,9 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 				for(size_t i = 0;i<this->total_size;i++)
 					out_iter[i] = out_iter[i-1]+this->data_buffer.get()[i];
 				
+				for (auto element: 	output){
+					cout<<(element) << " ";
+				}
 				return output;
 		}
 		
@@ -395,10 +657,89 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 				return output;
 		}
 
-		double mean(){
+		NdarrayMetadata<T, num_dimensions-1> max(size_t axis){
+			array<size_t,num_dimensions-1> output_shape = removeArrayElement(this->shape,axis);
+			vector<T> allocated_memory3(calc_size<size_t,num_dimensions-1>(output_shape));
+			auto output = NdarrayMetadata<T,num_dimensions-1>(allocated_memory3.data(), output_shape);
 
+			auto output_iter = output.data_buffer.get();
+			// T min = INT8_MIN;
+			std::fill(output.begin(), output.end(), INT8_MIN);
+			auto input_iter = this->data_buffer.get();
+			size_t axis_stride= this->strides[axis];
+			size_t axis_shape = this->shape[axis];
+			
+			size_t prev_axis_stride = this->strides[axis-1];
+			size_t prev_axis_prod = 1;
+			
+			for(size_t i=0;i<axis;i++)
+					prev_axis_prod*=this->shape[i];
+
+			for(size_t i = 0;i<prev_axis_prod;i++){
+					for(size_t j = 0;j<axis_shape;j++) {
+							for(size_t k = 0;k<axis_stride;k++) {
+								if(output_iter[k + i*prev_axis_stride/axis_shape] < input_iter[k + i*prev_axis_stride + j*axis_stride])
+									output_iter[k + i*prev_axis_stride/axis_shape] = input_iter[k + i*prev_axis_stride + j*axis_stride];
+							}
+					}
+			}
+			for (auto element: 	output){
+					cout<<(element) << " ";
+			}
+
+			cout << endl;
+			return output;
+    }
+
+		NdarrayMetadata<T, num_dimensions-1> min(size_t axis){
+			array<size_t,num_dimensions-1> output_shape = removeArrayElement(this->shape,axis);
+			vector<T> allocated_memory3(calc_size<size_t,num_dimensions-1>(output_shape));
+			auto output = NdarrayMetadata<T,num_dimensions-1>(allocated_memory3.data(), output_shape);
+
+			auto output_iter = output.data_buffer.get();
+			// T max = this->max();
+			std::fill(output.begin(), output.end(), INT8_MAX);
+			auto input_iter = this->data_buffer.get();
+			size_t axis_stride= this->strides[axis];
+			size_t axis_shape = this->shape[axis];
+			
+			size_t prev_axis_stride = this->strides[axis-1];
+			size_t prev_axis_prod = 1;
+			
+			for(size_t i=0;i<axis;i++)
+					prev_axis_prod*=this->shape[i];
+
+			for(size_t i = 0;i<prev_axis_prod;i++){
+					for(size_t j = 0;j<axis_shape;j++) {
+							for(size_t k = 0;k<axis_stride;k++) {
+								if(output_iter[k + i*prev_axis_stride/axis_shape] > input_iter[k + i*prev_axis_stride + j*axis_stride])
+									output_iter[k + i*prev_axis_stride/axis_shape] = input_iter[k + i*prev_axis_stride + j*axis_stride];
+							}
+					}
+			}
+			for (auto element: 	output){
+					cout<<(element) << " ";
+			}
+
+			cout << endl;
+			return output;
+    }
+
+		double mean(){
         double output = static_cast<double>(std::accumulate(this->begin(), this->end(), 0.0));;
 				return output/static_cast<double>(this->total_size);
+		}
+
+		NdarrayMetadata<T, num_dimensions-1> mean(size_t axis){
+			auto output = this->sum(axis);
+			auto size =this->shape[axis];
+			for(size_t i=0;i<output.total_size;i++)
+				output(i) = output(i)/size;
+			// cout << "\n\n\n";
+			// for (auto element: 	output){
+			// 		cout<<(element) << " ";
+			// }
+			return output;
 		}
 
 		double median(){
@@ -408,6 +749,7 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 
 				return list.data_buffer.get()[(this->total_size)/2];
 		}
+		
 
 		size_t nbytes() {
 			return static_cast<size_t>(sizeof(T) * this->total_size);
@@ -437,18 +779,95 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 			std::nth_element(this->begin(), this->begin() + k, this->end());
 			return;
 		}
-
-		NdarrayMetadata<T, num_dimensions> prod(){
-			
+		
+		NdarrayMetadata<T, num_dimensions> power(size_t exp){	
         auto output = NdarrayMetadata<T, num_dimensions>(this->shape);
 				
-				auto out = this->data_buffer.get()[0];
+				auto out_iter = output.data_buffer.get();
+				out_iter[0] = this->data_buffer.get()[0];
 				for(size_t i = 0;i<this->total_size;i++)
-					out*=this->data_buffer.get()[i];
+					out_iter[i] = pow(this->data_buffer.get()[i],exp);
 				
-				output.data_buffer.get()[0] = out;
+				for (auto element: 	output){
+					cout<<(element) << " ";
+				}
 				return output;
 		}
+
+		NdarrayMetadata<T, num_dimensions> square(){	
+        auto output = NdarrayMetadata<T, num_dimensions>(this->shape);
+				
+				for(size_t i = 0;i<this->total_size;i++)
+					output(i) = this->data_buffer.get()[i]*this->data_buffer.get()[i];
+				
+				size_t i = 0;
+				for (auto element: 	output){
+					
+					cout<<(element) << " ";
+					cout<< " " << this->data_buffer.get()[i++] << endl;
+				}
+				return output;
+		}
+
+		NdarrayMetadata<T, num_dimensions> cube(size_t exp){	
+        auto output = NdarrayMetadata<T, num_dimensions>(this->shape);
+				
+				auto out_iter = output.data_buffer.get();
+				out_iter[0] = this->data_buffer.get()[0];
+				for(size_t i = 0;i<this->total_size;i++)
+					out_iter[i] = pow(this->data_buffer.get()[i],3);
+				
+				for (auto element: 	output){
+					cout<<(element) << " ";
+				}
+				return output;
+		}
+
+		NdarrayMetadata<float, num_dimensions> sqrt(){	
+        auto output = NdarrayMetadata<float, num_dimensions>(this->shape);
+				
+				auto out_iter = output.data_buffer.get();
+				out_iter[0] = this->data_buffer.get()[0];
+				for(size_t i = 0;i<this->total_size;i++)
+					out_iter[i] = std::sqrt(this->data_buffer.get()[i]);
+				
+				for (auto element: 	output){
+					cout<<(element) << " ";
+				}
+				return output;
+		}
+
+    NdarrayMetadata<T, num_dimensions-1> prod(size_t axis){
+			array<size_t,num_dimensions-1> output_shape = removeArrayElement(this->shape,axis);
+			vector<T> allocated_memory3(calc_size<size_t,num_dimensions-1>(output_shape));
+			auto output = NdarrayMetadata<T,num_dimensions-1>(allocated_memory3.data(), output_shape);
+
+			auto output_iter = output.data_buffer.get();
+			std::fill(output.begin(), output.end(), 1);
+			auto input_iter = this->data_buffer.get();
+			size_t axis_stride= this->strides[axis];
+			size_t axis_shape = this->shape[axis];
+			
+			size_t prev_axis_stride = this->strides[axis-1];
+			size_t prev_axis_prod = 1;
+			
+			for(size_t i=0;i<axis;i++)
+					prev_axis_prod*=this->shape[i];
+
+			for(size_t i = 0;i<prev_axis_prod;i++){
+					for(size_t j = 0;j<axis_shape;j++) {
+							for(size_t k = 0;k<axis_stride;k++) {
+									output_iter[k + i*prev_axis_stride/axis_shape] *= input_iter[k + i*prev_axis_stride + j*axis_stride];
+							}
+					}
+			}
+			for (auto element: 	output){
+					cout<<(element) << " ";
+			}
+
+			cout << endl;
+			return output;
+    }
 
 		NdarrayMetadata<T, num_dimensions> ptp(){
 			
@@ -496,13 +915,6 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 			return output;
 		}
 
-		template<size_t new_num_dimensions>
-		void resize(array<size_t ,new_num_dimensions> NewShape){
-			auto new_dim = calc_size(NewShape);
-			if(this->total_size != new_dim)
-					throw UnequalSizeError();
-			
-		}
 
 		NdarrayMetadata<T, 1> ravel(){
 			array<size_t, 1> shape = {this->total_size};
@@ -543,211 +955,323 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 			}
 			return indices;
 		}
+		
+		NdarrayMetadata<T, num_dimensions-1> squeeze(size_t axis){    
+        if(this->shape[axis] != 1)
+        {
+					throw "ValueError: cannot select an axis to squeeze out which has size not equal to one";
+        } 
+				else {
+					auto shape = removeArrayElement(this->shape,axis);  
+					array<size_t,num_dimensions-1> output_shape = shape;
+					vector<int64_t> allocated_memory3(calc_size<size_t,num_dimensions-1>(output_shape));
+					auto output = NdarrayMetadata<int64_t,num_dimensions-1>(allocated_memory3.data(), output_shape);  
+					for(size_t i = 0;i<output.total_size;i++){
+							output.data_buffer.get()[i] = this->data_buffer.get()[i];
+					}
+          return output;
+        }
+    }
+		
+    NdarrayMetadata<T, num_dimensions-1> sum(size_t axis){
+			array<size_t,num_dimensions-1> output_shape = removeArrayElement(this->shape,axis);
+			vector<T> allocated_memory3(calc_size<size_t,num_dimensions-1>(output_shape));
+			auto output = NdarrayMetadata<T,num_dimensions-1>(allocated_memory3.data(), output_shape);
 
-		// template<typename TOut>
-		// NdarrayMetadata<TOut,num_dimensions> astype(typename TOut) {
-		// 	auto returnArray =  NdarrayMetadata<TOut,num_dimensions>(this->shape);
-		// 	for(size_t i =0;i<this->total_size;i++)
-		// 		returnArray.data_buffer.get()[i] =  static_cast<TOut>(this->data_buffer.get()[i])
-		// 	return std::move(returnArray);
-
-		// }	
-
-		NdarrayMetadata<T,num_dimensions>& operator&=(NdarrayMetadata<T,num_dimensions> input){
-			static_assert(std::numeric_limits<T>::is_integer, "ERROR: &Operator: can only use with integer types.");
-
-			if(this->shape != input.shape){
-				throw UnequalShapeError();
-			}
-
-			std::transform(begin(), end(), input.begin(),begin(), std::bit_and<T>());
-			return *this;
-		}
-
-		NdarrayMetadata<T,num_dimensions>& operator&=(T input){
-			static_assert(std::numeric_limits<T>::is_integer, "ERROR: &Operator: can only use with integer types.");
-
-			std::for_each(begin(), end(), [=](T& value) noexcept -> T { return value &= input; });
-			return *this;
-		}
-
-		NdarrayMetadata<T,num_dimensions>& operator&(T input){
-			return (*this &= input);
-		}
-
-		NdarrayMetadata<T,num_dimensions>& operator&(NdarrayMetadata<T,num_dimensions> input){
-			return (*this &= input);
-		}
-
-
-
-		NdarrayMetadata<T,num_dimensions>& operator|=(NdarrayMetadata<T,num_dimensions> input){
-			static_assert(std::numeric_limits<T>::is_integer, "ERROR: | Operator: can only use with integer types.");
-
-			if(this->shape != input.shape){
-				throw UnequalShapeError();
-			}
-
-			std::transform(begin(), end(), input.begin(),begin(), std::bit_or<T>());
-			return *this;
-		}
-
-		NdarrayMetadata<T,num_dimensions>& operator|=(T input){
-			static_assert(std::numeric_limits<T>::is_integer, "ERROR: | Operator: can only use with integer types.");
-
-			std::for_each(begin(), end(), [=](T& value) noexcept -> T { return value |= input; });
-			return *this;
-		}
-
-		NdarrayMetadata<T,num_dimensions>& operator|(T input){
-			return (*this |= input);
-		}
-
-		NdarrayMetadata<T,num_dimensions>& operator|(NdarrayMetadata<T,num_dimensions> input){
-			return (*this |= input);
-		}
-
-
-
-		NdarrayMetadata<T,num_dimensions>& operator^=(NdarrayMetadata<T,num_dimensions> input){
-			static_assert(std::numeric_limits<T>::is_integer, "ERROR: ^ Operator: can only use with integer types.");
-
-			if(this->shape != input.shape){
-				throw UnequalShapeError();
-			}
-
-			std::transform(begin(), end(), input.begin(),begin(), std::bit_xor<T>());
-			return *this;
-		}
-
-		NdarrayMetadata<T,num_dimensions>& operator^=(T input){
-			static_assert(std::numeric_limits<T>::is_integer, "ERROR: ^ Operator: can only use with integer types.");
-
-			std::for_each(begin(), end(), [=](T& value) noexcept -> T { return value ^= input; });
-			return *this;
-		}
-
-		NdarrayMetadata<T,num_dimensions>& operator^(T input){
-			return (*this ^= input);
-		}
-
-		NdarrayMetadata<T,num_dimensions>& operator^(NdarrayMetadata<T,num_dimensions> input){
-			return (*this ^= input);
-		}
-
-
-		NdarrayMetadata<T,num_dimensions>& operator~(){
-			static_assert(std::numeric_limits<T>::is_integer, "ERROR: ~ Operator: can only use with integer types.");
-			std::transform(begin(), end(), begin(), [](T value) noexcept -> T { return ~value; });
-			return *this;
-		}
-
-
-
-		NdarrayMetadata<T,num_dimensions> operator<(T inValue) {
+			auto output_iter = output.data_buffer.get();
+			std::fill(output.begin(), output.end(), 0);
+			auto input_iter = this->data_buffer.get();
+			size_t axis_stride= this->strides[axis];
+			size_t axis_shape = this->shape[axis];
 			
-			auto returnArray =  NdarrayMetadata<T,num_dimensions>(this->shape);
-			std::transform(begin(), end(), returnArray.begin(),
-					[inValue](T value) noexcept -> T { return value < inValue; });
-			return std::move(returnArray);
-		}
-
-		NdarrayMetadata<T,num_dimensions> operator<=(T inValue) {
+			size_t prev_axis_stride = this->strides[axis-1];
+			size_t prev_axis_prod = 1;
 			
-			auto returnArray =  NdarrayMetadata<T,num_dimensions>(this->shape);
-			std::transform(begin(), end(), returnArray.begin(),
-					[inValue](T value) noexcept -> T { return value <= inValue; });
-			return std::move(returnArray);
-		}
+			cout << endl;
+			cout << endl;
+			cout << endl;
+			for(size_t i=0;i<axis;i++)
+					prev_axis_prod*=this->shape[i];
 
-		NdarrayMetadata<T,num_dimensions>& operator<(NdarrayMetadata<T,num_dimensions> input){
-
-			if(this->shape != input.shape){
-				throw UnequalShapeError();
+			for(size_t i = 0;i<prev_axis_prod;i++){
+					for(size_t j = 0;j<axis_shape;j++) {
+							for(size_t k = 0;k<axis_stride;k++) {
+									cout << input_iter[k + i*prev_axis_stride + j*axis_stride] << " ";
+									output_iter[k + i*prev_axis_stride/axis_shape] += input_iter[k + i*prev_axis_stride + j*axis_stride];
+							}
+							cout << endl;
+					}
+					cout << endl;
 			}
+			// cout << "\n\n\n";
+			// for (auto element: 	output){
+			// 		cout<<(element) << " ";
+			// }
+			return output;
+    }
 
-			std::transform(begin(), end(), input.begin(),begin(), std::less<T>());
-			return *this;
+		double var(){
+			double mean = this->mean();
+			double variance = 0;
+			for(size_t i =0;i<total_size;i++)
+				variance += ((data_buffer.get()[i] - mean)*(data_buffer.get()[i] - mean));
+			variance /= total_size;
+			return variance; 
 		}
 
-		NdarrayMetadata<T,num_dimensions>& operator<=(NdarrayMetadata<T,num_dimensions> input){
-
-			if(this->shape != input.shape){
-				throw UnequalShapeError();
-			}
-
-			std::transform(begin(), end(), input.begin(),begin(), std::less_equal<T>());
-			return *this;
+		double std(){
+			double var = this->var();
+			return sqrt(var);
 		}
 
+		NdarrayMetadata<double, num_dimensions-1> var(size_t axis){
+			array<size_t,num_dimensions-1> output_shape = removeArrayElement(this->shape,axis);
+			vector<double> allocated_memory3(calc_size<size_t,num_dimensions-1>(output_shape));
+			auto output = NdarrayMetadata<double,num_dimensions-1>(allocated_memory3.data(), output_shape);
 
+			auto mean = this->mean(axis);
 
-		NdarrayMetadata<T,num_dimensions> operator>(T inValue) {
+			auto output_iter = output.data_buffer.get();
+			auto mean_iter = mean.data_buffer.get();
+			std::fill(output.begin(), output.end(), 0);
+			auto input_iter = this->data_buffer.get();
+			size_t axis_stride= this->strides[axis];
+			size_t axis_shape = this->shape[axis];
 			
-			auto returnArray =  NdarrayMetadata<T,num_dimensions>(this->shape);
-			std::transform(begin(), end(), returnArray.begin(),
-					[inValue](T value) noexcept -> T { return value > inValue; });
-			return std::move(returnArray);
-		}
-
-		NdarrayMetadata<T,num_dimensions> operator>=(T inValue) {
+			size_t prev_axis_stride = this->strides[axis-1];
+			size_t prev_axis_prod = 1;
 			
-			auto returnArray =  NdarrayMetadata<T,num_dimensions>(this->shape);
-			std::transform(begin(), end(), returnArray.begin(),
-					[inValue](T value) noexcept -> T { return value >= inValue; });
-			return std::move(returnArray);
-		}
 
-		NdarrayMetadata<T,num_dimensions>& operator>(NdarrayMetadata<T,num_dimensions> input){
+			for(size_t i=0;i<axis;i++)
+				prev_axis_prod*=this->shape[i];
 
-			if(this->shape != input.shape){
-				throw UnequalShapeError();
+			for(size_t i = 0;i<prev_axis_prod;i++){
+				for(size_t j = 0;j<axis_shape;j++) {
+					for(size_t k = 0;k<axis_stride;k++) {
+						output_iter[k + i*prev_axis_stride/axis_shape] = (input_iter[k + i*prev_axis_stride + j*axis_stride]-mean_iter[k + i*prev_axis_stride/axis_shape])*(input_iter[k + i*prev_axis_stride + j*axis_stride]-mean_iter[k + i*prev_axis_stride/axis_shape]);
+					}
+				}
 			}
+			
+		  cout << "\n\n\n";
+			// for (auto element: 	output){
+			// 		cout<<(element) << " ";
+			// }
 
-			std::transform(begin(), end(), input.begin(),begin(), std::greater<T>());
-			return *this;
+			cout << endl;
+			return output;
 		}
 
-		NdarrayMetadata<T,num_dimensions>& operator>=(NdarrayMetadata<T,num_dimensions> input){
+		NdarrayMetadata<double, num_dimensions-1> std(size_t axis){
+			auto output = this->var(axis);
+			auto out_iter = output.data_buffer.get();
+			for(size_t i = 0;i<output.total_size;i++)
+				out_iter[i] = std::sqrt(out_iter[i]);
+			return output;
+		}
 
-			if(this->shape != input.shape){
-				throw UnequalShapeError();
+				NdarrayMetadata<T,num_dimensions>& operator&=(NdarrayMetadata<T,num_dimensions> input){
+					static_assert(std::numeric_limits<T>::is_integer, "ERROR: &Operator: can only use with integer types.");
+
+					if(this->shape != input.shape){
+						throw UnequalShapeError();
+					}
+
+					std::transform(begin(), end(), input.begin(),begin(), std::bit_and<T>());
+					return *this;
+				}
+
+				NdarrayMetadata<T,num_dimensions>& operator&=(T input){
+					static_assert(std::numeric_limits<T>::is_integer, "ERROR: &Operator: can only use with integer types.");
+
+					std::for_each(begin(), end(), [=](T& value) noexcept -> T { return value &= input; });
+					return *this;
+				}
+
+				NdarrayMetadata<T,num_dimensions>& operator&(T input){
+					return (*this &= input);
+				}
+
+				NdarrayMetadata<T,num_dimensions>& operator&(NdarrayMetadata<T,num_dimensions> input){
+					return (*this &= input);
+				}
+
+
+
+				NdarrayMetadata<T,num_dimensions>& operator|=(NdarrayMetadata<T,num_dimensions> input){
+					static_assert(std::numeric_limits<T>::is_integer, "ERROR: | Operator: can only use with integer types.");
+
+					if(this->shape != input.shape){
+						throw UnequalShapeError();
+					}
+
+					std::transform(begin(), end(), input.begin(),begin(), std::bit_or<T>());
+					return *this;
+				}
+
+				NdarrayMetadata<T,num_dimensions>& operator|=(T input){
+					static_assert(std::numeric_limits<T>::is_integer, "ERROR: | Operator: can only use with integer types.");
+
+					std::for_each(begin(), end(), [=](T& value) noexcept -> T { return value |= input; });
+					return *this;
+				}
+
+				NdarrayMetadata<T,num_dimensions>& operator|(T input){
+					return (*this |= input);
+				}
+
+				NdarrayMetadata<T,num_dimensions>& operator|(NdarrayMetadata<T,num_dimensions> input){
+					return (*this |= input);
+				}
+
+
+
+				NdarrayMetadata<T,num_dimensions>& operator^=(NdarrayMetadata<T,num_dimensions> input){
+					static_assert(std::numeric_limits<T>::is_integer, "ERROR: ^ Operator: can only use with integer types.");
+
+					if(this->shape != input.shape){
+						throw UnequalShapeError();
+					}
+
+					std::transform(begin(), end(), input.begin(),begin(), std::bit_xor<T>());
+					return *this;
+				}
+
+				NdarrayMetadata<T,num_dimensions>& operator^=(T input){
+					static_assert(std::numeric_limits<T>::is_integer, "ERROR: ^ Operator: can only use with integer types.");
+
+					std::for_each(begin(), end(), [=](T& value) noexcept -> T { return value ^= input; });
+					return *this;
+				}
+
+				NdarrayMetadata<T,num_dimensions>& operator^(T input){
+					return (*this ^= input);
+				}
+
+				NdarrayMetadata<T,num_dimensions>& operator^(NdarrayMetadata<T,num_dimensions> input){
+					return (*this ^= input);
+				}
+
+
+				NdarrayMetadata<T,num_dimensions>& operator~(){
+					static_assert(std::numeric_limits<T>::is_integer, "ERROR: ~ Operator: can only use with integer types.");
+					std::transform(begin(), end(), begin(), [](T value) noexcept -> T { return ~value; });
+					return *this;
+				}
+
+
+
+				NdarrayMetadata<T,num_dimensions> operator<(T inValue) {
+					
+					auto returnArray =  NdarrayMetadata<T,num_dimensions>(this->shape);
+					std::transform(begin(), end(), returnArray.begin(),
+							[inValue](T value) noexcept -> T { return value < inValue; });
+					return std::move(returnArray);
+				}
+
+				NdarrayMetadata<T,num_dimensions> operator<=(T inValue) {
+					
+					auto returnArray =  NdarrayMetadata<T,num_dimensions>(this->shape);
+					std::transform(begin(), end(), returnArray.begin(),
+							[inValue](T value) noexcept -> T { return value <= inValue; });
+					return std::move(returnArray);
+				}
+
+				NdarrayMetadata<T,num_dimensions>& operator<(NdarrayMetadata<T,num_dimensions> input){
+
+					if(this->shape != input.shape){
+						throw UnequalShapeError();
+					}
+
+					std::transform(begin(), end(), input.begin(),begin(), std::less<T>());
+					return *this;
+				}
+
+				NdarrayMetadata<T,num_dimensions>& operator<=(NdarrayMetadata<T,num_dimensions> input){
+
+					if(this->shape != input.shape){
+						throw UnequalShapeError();
+					}
+
+					std::transform(begin(), end(), input.begin(),begin(), std::less_equal<T>());
+					return *this;
+				}
+
+				NdarrayMetadata<T,num_dimensions> operator/(T inValue) {	
+					auto returnArray =  NdarrayMetadata<T,num_dimensions>(this->shape);
+					std::transform(begin(), end(), returnArray.begin(),
+							[inValue](T value) noexcept -> T { return value /= inValue; });
+					return std::move(returnArray);
+				}
+
+				NdarrayMetadata<T,num_dimensions>& operator/=(T inValue) {	
+					std::transform(begin(), end(), begin(),
+							[inValue](T value) noexcept -> T { return value /= inValue; });
+					return *this;
+				}
+
+
+				NdarrayMetadata<T,num_dimensions> operator>(T inValue) {
+					
+					auto returnArray =  NdarrayMetadata<T,num_dimensions>(this->shape);
+					std::transform(begin(), end(), returnArray.begin(),
+							[inValue](T value) noexcept -> T { return value > inValue; });
+					return std::move(returnArray);
+				}
+
+				NdarrayMetadata<T,num_dimensions> operator>=(T inValue) {
+					
+					auto returnArray =  NdarrayMetadata<T,num_dimensions>(this->shape);
+					std::transform(begin(), end(), returnArray.begin(),
+							[inValue](T value) noexcept -> T { return value >= inValue; });
+					return std::move(returnArray);
+				}
+
+				NdarrayMetadata<T,num_dimensions>& operator>(NdarrayMetadata<T,num_dimensions> input){
+
+					if(this->shape != input.shape){
+						throw UnequalShapeError();
+					}
+
+					std::transform(begin(), end(), input.begin(),begin(), std::greater<T>());
+					return *this;
+				}
+
+				NdarrayMetadata<T,num_dimensions>& operator>=(NdarrayMetadata<T,num_dimensions> input){
+
+					if(this->shape != input.shape){
+						throw UnequalShapeError();
+					}
+
+					std::transform(begin(), end(), input.begin(),begin(), std::greater_equal<T>());
+					return *this;
+				}
+
+				NdarrayMetadata<T,num_dimensions> operator*(NdarrayMetadata<T,num_dimensions> input){
+
+					if(this->shape != input.shape){
+						throw UnequalShapeError();
+					}
+					auto output = NdarrayMetadata<T,num_dimensions>(this->shape);
+					std::transform(begin(), end(), input.begin(),begin(), std::multiplies<T>());
+					return std::move(output);
+				}
+		};
+
+
+		template<typename T, size_t N>
+		ostream& operator << (ostream& stream, array<T, N>arg ) {
+			stream << '(';
+			for (size_t i = 0; i < arg.size() ; i++){
+				stream << arg[i];
+				if (i < arg.size() - 1){
+					stream << ", ";
+				}
 			}
-
-			std::transform(begin(), end(), input.begin(),begin(), std::greater_equal<T>());
-			return *this;
-		}
-};
-
-
-template<typename T, size_t N>
-ostream& operator << (ostream& stream, array<T, N>arg ) {
-	stream << '(';
-	for (size_t i = 0; i < arg.size() ; i++){
-		stream << arg[i];
-		if (i < arg.size() - 1){
-			stream << ", ";
-		}
-	}
-	stream << ')';
-	return stream;
+			stream << ')';
+			return stream;
 }
 
-// template<typename T, size_t N>
-// void printArr (NdarrayMetadata<T, N> arg ) {
-// 	cout << '[';
-// 	auto stride = arg.strides;
-// 	for(size_t dim = 0; dim < N; dim++){
-// 		cout << dim << endl;
-// 		cout << '[';
-// 		// for (size_t i = dim; i < arg.total_size; i+stride[dim]){
-// 		cout  << arg(dim);
-// 		// 	cout  << ", ";
-// 		// }
-// 		cout  << " ]";
-// 	}
-// 	cout  << ']';
-// }
 
 // template<typename T, size_t N>
 // ostream& operator<< (ostream& stream, NdarrayMetadata<T, N> arg ) {
@@ -795,6 +1319,7 @@ template<typename T, size_t num_dimensions>
 NdarrayMetadata<T, num_dimensions> create_array(T* pointer_to_allocated_memory_, array<size_t, num_dimensions> shape_) {
 	auto destructor_=_initDeleter<T>;
 	cout << "created. \n";
+	
 	return NdarrayMetadata<T,num_dimensions>(calc_size(shape_), 0, shared_ptr<T>(pointer_to_allocated_memory_, destructor_),
 						shape_, calc_strides(shape_));
 }
@@ -805,9 +1330,22 @@ NdarrayMetadata<T, num_dimensions> create_array(array<size_t, num_dimensions> sh
 	
 	vector<T> allocated_memory(calc_size<size_t, num_dimensions>(shape_));
 	auto destructor_=_initDeleter<T>;
-	auto pointer_to_allocated_memory_ = allocated_memory.data();
+	const auto pointer_to_allocated_memory_ = allocated_memory.data();
+	
 	return NdarrayMetadata<T,num_dimensions>(calc_size(shape_), 0, shared_ptr<T>(pointer_to_allocated_memory_, destructor_),shape_, calc_strides(shape_));
+	// return ndarry;
 }
 
+
+template<typename T, size_t num_dimensions> 
+array<T, (num_dimensions-1)> removeArrayElement(array<T, num_dimensions> a, size_t index){
+		array<T, (num_dimensions-1)> output;
+		for(size_t i =0,j=0;i<a.size();i++)
+				{          
+						if(i!=index)
+								output[j++] = a[i];
+				}
+		return output;
+}
 
 #endif

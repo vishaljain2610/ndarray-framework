@@ -7,6 +7,8 @@
 #include "ndarray.hpp"
 #include "arithematic.hpp"
 #include "helperfunctions.hpp"
+#include "BinaryOperations.hpp"
+#include "LogicFunctions.hpp"
 #include "methods.hpp"
 
 using namespace std;
@@ -41,34 +43,57 @@ void slice_related(){
 	}
 }
 void methods_related(){
-	array<size_t, 3> shape3 = {2,3,4};
-	vector<int> allocated_memory3(calc_size<size_t, 3>(shape3));
-	auto array3d = create_array<int, 3>(allocated_memory3.data(), shape3);
-	for(size_t i = 0;i<array3d.total_size;i++){	
-		array3d.data_buffer.get()[i] = i-5;
-	}
+	
+	array<size_t,1> shape1x = {10};
+	array<size_t,1> shape1y = {10};
+	// array<size_t,2> shape1xy = {10,2};
 
-	auto array1d = numc::clip(array3d,3,10);
 
-	array<size_t, 3> shape2 = {2,3,4};
-	vector<int> allocated_memory2(calc_size<size_t, 3>(shape2));
-	auto array2d = create_array<int, 3>(allocated_memory2.data(), shape2);
+	vector<int> allocated_memoryX(calc_size<size_t,1>(shape1x));
+	auto x = create_array<int,1>(allocated_memoryX.data(), shape1x);
 
-	for(auto elem : array1d){
-		cout << elem << " ";
-	}
+	// vector<int> allocated_memoryXY(calc_size<size_t,2>(shape1xy));
+	// auto x = create_array<int,2>(allocated_memoryX.data(), shape1xy);
 
-	cout << " \n -- \n";
-	for(auto elem : array3d){
-		cout << elem << " ";
-	}
+	vector<int> allocated_memoryY(calc_size<size_t,1>(shape1y));
+	auto y = create_array<int,1>(allocated_memoryY.data(), shape1y);
+
+	for(size_t i =0;i<x.total_size;i++)
+		x(i) = 2*(i+1);
+
+	y(0) = 1;
+	y(1) = 3;
+	y(2) = 2;
+	y(3) = 5;
+	y(4) = 7;
+	y(5) = 8;
+	y(6) = 8;
+	y(7) = 9;
+	y(8) = 10;
+	y(9) = 12;
+
+	auto sumYX = numc::sum(numc::multiplie(y,x));
+	auto sumXX = numc::sum(numc::multiplie(x,x));
+
+	double m_x = numc::mean(x);
+	double m_y = numc::mean(y);
+
+	auto SS_xy = sumYX - x.total_size*m_y*m_x;
+	auto SS_xx = sumXX - x.total_size*m_x*m_x;
+	
+	auto b_1 = SS_xy / SS_xx ;
+    auto b_0 = m_y - b_1*m_x ;
+
+		// for(auto elem: x)
+		// 	cout << elem << " ";
+
 }
 
 int main()
 {	
-	assignment_related();
+	// assignment_related();
 	methods_related();
-	slice_related();
+	// slice_related();
 	return 0;
 }
 
