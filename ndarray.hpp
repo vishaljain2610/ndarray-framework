@@ -726,8 +726,14 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
     }
 
 		double mean(){
-        double output = static_cast<double>(std::accumulate(this->begin(), this->end(), 0.0));;
+				cout << "Calculating mean .. ";
+        double output = static_cast<double>(std::accumulate(this->begin(), this->end(), 0.0));
+				cout << output << endl;
 				return output/static_cast<double>(this->total_size);
+		}
+
+		T sum(){
+        return (std::accumulate(this->begin(), this->end(), 0.0));
 		}
 
 		NdarrayMetadata<T, num_dimensions-1> mean(size_t axis){
@@ -860,13 +866,14 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 									output_iter[k + i*prev_axis_stride/axis_shape] *= input_iter[k + i*prev_axis_stride + j*axis_stride];
 							}
 					}
-			}
-			for (auto element: 	output){
-					cout<<(element) << " ";
-			}
+			}	
+
+			// for (auto element: 	output){
+			// 		cout<<(element) << " ";
+			// }
 
 			cout << endl;
-			return output;
+			return std::move(output);
     }
 
 		NdarrayMetadata<T, num_dimensions> ptp(){
@@ -973,49 +980,41 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
         }
     }
 		
-    NdarrayMetadata<T, num_dimensions-1> sum(size_t axis){
-			array<size_t,num_dimensions-1> output_shape = removeArrayElement(this->shape,axis);
-			vector<T> allocated_memory3(calc_size<size_t,num_dimensions-1>(output_shape));
-			auto output = NdarrayMetadata<T,num_dimensions-1>(allocated_memory3.data(), output_shape);
+    NdarrayMetadata<T, num_dimensions-1>* sum(size_t axis, NdarrayMetadata<T,num_dimensions-1>* output){
 
-			auto output_iter = output.data_buffer.get();
-			std::fill(output.begin(), output.end(), 0);
-			auto input_iter = this->data_buffer.get();
+			// auto output_iter = output->data_buffer.get();
+			// std::fill(output->begin(), output->end(), 0);
+			// auto input_iter = this->data_buffer.get();
 			size_t axis_stride= this->strides[axis];
 			size_t axis_shape = this->shape[axis];
 			
 			size_t prev_axis_stride = this->strides[axis-1];
 			size_t prev_axis_prod = 1;
 			
-			cout << endl;
-			cout << endl;
-			cout << endl;
 			for(size_t i=0;i<axis;i++)
 					prev_axis_prod*=this->shape[i];
 
 			for(size_t i = 0;i<prev_axis_prod;i++){
 					for(size_t j = 0;j<axis_shape;j++) {
 							for(size_t k = 0;k<axis_stride;k++) {
-									cout << input_iter[k + i*prev_axis_stride + j*axis_stride] << " ";
-									output_iter[k + i*prev_axis_stride/axis_shape] += input_iter[k + i*prev_axis_stride + j*axis_stride];
+									cout << this->data_buffer.get()[k + i*prev_axis_stride + j*axis_stride] << " ";
+									output->data_buffer.get()[k + i*prev_axis_stride/axis_shape] += this->data_buffer.get()[k + i*prev_axis_stride + j*axis_stride];
+									
 							}
 							cout << endl;
 					}
 					cout << endl;
 			}
-			// cout << "\n\n\n";
-			// for (auto element: 	output){
-			// 		cout<<(element) << " ";
-			// }
 			return output;
     }
 
 		double var(){
 			double mean = this->mean();
+			// cout << mean;
 			double variance = 0;
 			for(size_t i =0;i<total_size;i++)
-				variance += ((data_buffer.get()[i] - mean)*(data_buffer.get()[i] - mean));
-			variance /= total_size;
+				variance += ((this->data_buffer.get()[i] - mean)*(this->data_buffer.get()[i] - mean));
+			
 			return variance; 
 		}
 
@@ -1196,6 +1195,17 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 					std::transform(begin(), end(), input.begin(),begin(), std::less_equal<T>());
 					return *this;
 				}
+				
+				NdarrayMetadata<T,num_dimensions>& operator*=(NdarrayMetadata<T,num_dimensions> input){
+
+					if(this->shape != input.shape){
+						throw UnequalShapeError();
+					}
+
+					std::transform(begin(), end(), input.begin(),begin(), std::multiplies<T>());
+					return *this;
+				}
+
 
 				NdarrayMetadata<T,num_dimensions> operator/(T inValue) {	
 					auto returnArray =  NdarrayMetadata<T,num_dimensions>(this->shape);
@@ -1217,6 +1227,13 @@ template<typename T, size_t num_dimensions> class NdarrayMetadata {
 					std::transform(begin(), end(), returnArray.begin(),
 							[inValue](T value) noexcept -> T { return value > inValue; });
 					return std::move(returnArray);
+				}
+
+				NdarrayMetadata<double,num_dimensions>& operator-(double inValue) {
+					
+					for(size_t i=0;i<this->total_size;i++)
+						this->data_buffer.get()[i] -= inValue;
+					return *this;
 				}
 
 				NdarrayMetadata<T,num_dimensions> operator>=(T inValue) {

@@ -172,41 +172,35 @@ namespace numc
     }
     
     template<typename T, size_t num_dimensions> 
-    NdarrayMetadata<T, num_dimensions> byteswap(NdarrayMetadata<T, num_dimensions> a){
-        auto iter_input = a.data_buffer.get();    
+    NdarrayMetadata<T, num_dimensions>* byteswap(NdarrayMetadata<T, num_dimensions>* a){
+        auto iter_input = a->data_buffer.get();    
         
-        array<size_t, num_dimensions> out_shape = a.shape;
-        vector<T> output_allocated_memory(calc_size<size_t, num_dimensions>(out_shape));
-        auto output = create_array<T, num_dimensions>(output_allocated_memory.data(), out_shape);    
-        
-        auto iter_output = output.data_buffer.get();
-        
-        for (size_t i =0; i<a.total_size;i++){
-            iter_output[i] = __builtin_bswap64 (iter_input[i]);
-            cout << iter_output[i] << " ";
+        for (size_t i =0; i<a->total_size;i++){
+            iter_input[i] = __builtin_bswap64 (iter_input[i]);
         }
-        return output;
+        return a;
     }
 
     template<typename T, size_t num_dimensions> 
-    NdarrayMetadata<T, num_dimensions> clip(NdarrayMetadata<T, num_dimensions> Array ,int64_t min,int64_t max){    
-	    auto output = copy(Array);
-        auto iter_output = output.data_buffer.get();
+    NdarrayMetadata<T, num_dimensions>* clip(NdarrayMetadata<T, num_dimensions>* Array ,int64_t min,int64_t max){    
+        auto iter_output = Array->data_buffer.get();
 
-        for(size_t i=0;i<Array.total_size;i++){
+        for(size_t i=0;i<Array->total_size;i++){
             if(iter_output[i] < min)
                 iter_output[i] = min;
             if(iter_output[i] > max)
                 iter_output[i] = max;
         }   
-        return output;
+        return Array;
     }
+
+    
 
 
     template<typename T, size_t num_dimensions> 
     NdarrayMetadata<T, num_dimensions> copy(NdarrayMetadata<T, num_dimensions> a){
 
-        auto iter_input = a.data_buffer.get();   
+        auto iter_input = a->data_buffer.get();   
         
         array<size_t, num_dimensions> out_shape = a.shape;
         vector<T> output_allocated_memory(calc_size<size_t, num_dimensions>(out_shape));
@@ -253,15 +247,12 @@ namespace numc
     }
 
     template<typename T, size_t num_dimensions> 
-    NdarrayMetadata<T , 1> flatten(NdarrayMetadata<T, num_dimensions> a){
+    NdarrayMetadata<T , 1>* flatten(NdarrayMetadata<T, num_dimensions>* a,NdarrayMetadata<T, 1>* output){
         
-        array<size_t, 1> out_shape = a.total_size;
-        vector<int64_t> output_allocated_memory(calc_size<size_t, 1>(out_shape));
-        auto output = create_array<int64_t, 1>(output_allocated_memory.data(), out_shape);    
-        auto iter_input = a.data_buffer.get();
-        auto iter_output = output.data_buffer.get();
+        auto iter_input = a->data_buffer.get();
+        auto iter_output = output->data_buffer.get();
 
-        for (size_t i=0;i<a.total_size;i++)
+        for (size_t i=0;i<a->total_size;i++)
             iter_output[i] = iter_input[i] ;
 
         return output;
@@ -269,11 +260,11 @@ namespace numc
     }
 
     template<typename T, size_t num_dimensions> 
-    void fill(NdarrayMetadata<T, num_dimensions> a ,int64_t val){
+    void fill(NdarrayMetadata<T, num_dimensions>* a ,int64_t val){
         
-        auto iter_input = a.data_buffer.get();
+        auto iter_input = a->data_buffer.get();
 
-        for (size_t i=0;i<a.total_size;i++)
+        for (size_t i=0;i<a->total_size;i++)
             iter_input[i] = val;
     }
   
@@ -288,25 +279,25 @@ namespace numc
     }
 
     template<typename T, size_t num_dimensions> 
-    T item(NdarrayMetadata<T, num_dimensions> a, array<T, num_dimensions> location){
+    T item(NdarrayMetadata<T, num_dimensions>* a, array<T, num_dimensions> location){
         T output;
         size_t strides = 0;
         size_t offset = 0;
         size_t t = 0;
         while(strides < num_dimensions){
-            offset += location[t]*a.strides[strides];
+            offset += location[t]*a->strides[strides];
             strides++;
             t++;
         }
-        return a.data_buffer.get()[offset];
+        return a->data_buffer.get()[offset];
     }
 
     template<typename T, size_t num_dimensions> 
-    T max(NdarrayMetadata<T, num_dimensions> a){
+    T max(NdarrayMetadata<T, num_dimensions>* a){
 
-        int64_t output = 0;
-        auto input_iter = a.data_buffer.get();
-        for(size_t i = 0;i<a.total_size;i++){
+        auto input_iter = a->data_buffer.get();
+        T output = input_iter[0];
+        for(size_t i = 1;i<a.total_size;i++){
             if(output < input_iter[i])
                 output = input_iter[i];
         }
@@ -316,9 +307,9 @@ namespace numc
     template<typename T, size_t num_dimensions> 
     T min(NdarrayMetadata<T, num_dimensions> a){
 
-        auto output = 0;
-        auto input_iter = a.data_buffer.get();
-        for(size_t i = 0;i<a.total_size;i++){
+        auto input_iter = a->data_buffer.get();
+        T output = input_iter[0];
+        for(size_t i = 1;i<a.total_size;i++){
             if(output > input_iter[i])
                 output = input_iter[i];
         }
@@ -327,34 +318,28 @@ namespace numc
 
 
     template<typename T, size_t num_dimensions> 
-    NdarrayMetadata<T, num_dimensions> newbyteorder(NdarrayMetadata<T, num_dimensions> a){
+    NdarrayMetadata<T, num_dimensions>* newbyteorder(NdarrayMetadata<T, num_dimensions>* a){
         return byteswap(a);
     }
 
     template<typename T, size_t num_dimensions> 
-    NdarrayMetadata<T, num_dimensions> round(NdarrayMetadata<T, num_dimensions> Array, size_t decimals){
-        // array<size_t,num_dimensions> output_shape = a.shape;
-        // vector<int64_t> allocated_memory3(calc_size<size_t,num_dimensions>(output_shape));
-        auto output = NdarrayMetadata<T,num_dimensions>(Array.shape);
+    NdarrayMetadata<T, num_dimensions>* round(NdarrayMetadata<T, num_dimensions>* Array,NdarrayMetadata<T, num_dimensions>* output, size_t decimals){
 
-        auto input_iter = Array.data_buffer.get();    
-        auto output_iter = output.data_buffer.get();
-        for(size_t i = 0;i<Array.total_size;i++){
+        auto input_iter = Array->data_buffer.get();    
+        auto output_iter = output->data_buffer.get();
+        for(size_t i = 0;i<Array->total_size;i++){
                 output_iter[i] = std::round(input_iter[i]);
         }
         return output;
     }
 
     template<typename T, size_t num_dimensions> 
-    NdarrayMetadata<T , 1> ravel(NdarrayMetadata<T, num_dimensions> a){
+    NdarrayMetadata<T , 1> ravel(NdarrayMetadata<T, num_dimensions>* a,NdarrayMetadata<T , 1>* output){
         
-        array<size_t, 1> out_shape = a.total_size;
-        vector<int64_t> output_allocated_memory(calc_size<size_t, 1>(out_shape));
-        auto output = create_array<int64_t, 1>(output_allocated_memory.data(), out_shape);    
-        auto iter_input = a.data_buffer.get();
-        auto iter_output = output.data_buffer.get();
+        auto iter_input = a->data_buffer.get();
+        auto iter_output = output->data_buffer.get();
 
-        for (size_t i=0;i<a.total_size;i++)
+        for (size_t i=0;i<a->total_size;i++)
             iter_output[i] = iter_input[i] ;
 
         return output;
@@ -362,57 +347,24 @@ namespace numc
     }
 
     template<typename T, size_t num_dimensions> 
-    NdarrayMetadata<T, num_dimensions> swapaxes(NdarrayMetadata<T, num_dimensions> a, size_t axis1, size_t axis2){
-        auto shape = a.shape;
-        shape[axis1] = a.shape[axis2];
-        shape[axis2] = a.shape[axis1];
-
-        array<size_t,num_dimensions> output_shape = shape;
-        vector<int64_t> allocated_memory3(calc_size<size_t,num_dimensions>(output_shape));
-        auto output = create_array<int64_t,num_dimensions>(allocated_memory3.data(), output_shape);
-        return output;
-    }
-
-    template<typename T, size_t num_dimensions> 
-    NdarrayMetadata<T, num_dimensions-1> squeeze(NdarrayMetadata<T, num_dimensions> a, size_t axis){
+    NdarrayMetadata<T, num_dimensions-1>* squeeze(NdarrayMetadata<T, num_dimensions-1>* output,NdarrayMetadata<T, num_dimensions>* a, size_t axis){
         
         if(a.shape[axis] != 1)
         {
             throw "ValueError: cannot select an axis to squeeze out which has size not equal to one";
         } else {
-            auto shape = removeArrayElement(a.shape,axis);  
-            array<size_t,num_dimensions-1> output_shape = shape;
-            vector<int64_t> allocated_memory3(calc_size<size_t,num_dimensions-1>(output_shape));
-            auto output = create_array<int64_t,num_dimensions-1>(allocated_memory3.data(), output_shape);
+            
 
             
-        for(size_t i = 0;i<output.total_size;i++){
-            output.data_buffer.get()[i] = a.data_buffer.get()[i];
+        for(size_t i = 0;i<output->total_size;i++){
+            output->data_buffer.get()[i] = a->data_buffer.get()[i];
         }
 
             return output;
         }
     }
 
-    template<typename T, size_t num_dimensions> 
-    NdarrayMetadata<T, num_dimensions> transpose(NdarrayMetadata<T, num_dimensions> a){
-        auto shape = a.shape;
-        std::reverse(std::begin(shape),std::end(shape));
 
-        array<size_t,num_dimensions> output_shape = shape;
-        vector<int64_t> allocated_memory3(calc_size<size_t,num_dimensions>(output_shape));
-        auto output = create_array<int64_t,num_dimensions>(allocated_memory3.data(), output_shape);
-
-        
-        auto iter_input = a.data_buffer.get();
-        auto iter_output = output.data_buffer.get();
-        for(size_t i = 0;i<a.total_size;i++){
-            iter_output[i] = iter_input[i];
-        }
-        return output;
-    }
-
-    
 
     template<typename T, size_t num_dimensions>
     NdarrayMetadata<T, num_dimensions> zeros(array<size_t, num_dimensions> shape_) {

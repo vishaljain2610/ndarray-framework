@@ -16,44 +16,43 @@
 
 namespace numc{
     template<typename T, size_t num_dimensions> 
-    NdarrayMetadata<T, num_dimensions> bitwise_and(NdarrayMetadata<T, num_dimensions> Array1,NdarrayMetadata<T, num_dimensions> Array2){
-        auto output = create_array<T, num_dimensions>(Array1.shape);
-        std::transform(Array1.begin(), Array1.end(), Array2.begin(),output.begin(), std::bit_and<T>());
+    NdarrayMetadata<T, num_dimensions>* bitwise_and(NdarrayMetadata<T, num_dimensions>* Array1,NdarrayMetadata<T, num_dimensions>* Array2, NdarrayMetadata<T, num_dimensions>* output){
+        
+        std::transform(Array1->begin(), Array1->end(), Array2->begin(),output->begin(), std::bit_and<T>());
         return output;
     }
 
     template<typename T, size_t num_dimensions> 
-    NdarrayMetadata<T, num_dimensions> bitwise_or(NdarrayMetadata<T, num_dimensions> Array1,NdarrayMetadata<T, num_dimensions> Array2){
-        auto output = create_array<T, num_dimensions>(Array1.shape);
-        std::transform(Array1.begin(), Array1.end(), Array2.begin(),output.begin(), std::bit_or<T>());
+    NdarrayMetadata<T, num_dimensions>* bitwise_or(NdarrayMetadata<T, num_dimensions>* Array1,NdarrayMetadata<T, num_dimensions>* Array2, NdarrayMetadata<T, num_dimensions>* output){
+        
+        std::transform(Array1->begin(), Array1->end(), Array2->begin(),output->begin(), std::bit_or<T>());
         return output;
     }
 
     template<typename T, size_t num_dimensions> 
-    NdarrayMetadata<T, num_dimensions> bitwise_xor(NdarrayMetadata<T, num_dimensions> Array1,NdarrayMetadata<T, num_dimensions> Array2){
-        auto output = create_array<T, num_dimensions>(Array1.shape);
-        std::transform(Array1.begin(), Array1.end(), Array2.begin(),output.begin(), std::bit_xor<T>());
+    NdarrayMetadata<T, num_dimensions>* bitwise_xor(NdarrayMetadata<T, num_dimensions>* Array1,NdarrayMetadata<T, num_dimensions>* Array2, NdarrayMetadata<T, num_dimensions>* output){
+        
+        std::transform(Array1->begin(), Array1->end(), Array2->begin(),output->begin(), std::bit_xor<T>());
         return output;
     }
 
     template<typename T, size_t num_dimensions> 
-    NdarrayMetadata<T,num_dimensions> invert(NdarrayMetadata<T, num_dimensions> Array){
-        auto output = create_array<T, num_dimensions>(Array.shape);
-        std::transform(Array.begin(), Array.end(), output.begin(), [](T value) noexcept -> T { return ~value; });
+    NdarrayMetadata<T,num_dimensions>* invert(NdarrayMetadata<T, num_dimensions>* Array,NdarrayMetadata<T, num_dimensions>* output){
+        std::transform(Array->begin(), Array->end(), output->begin(), [](T value) noexcept -> T { return ~value; });
         return output;
     }
 
     template<typename T, size_t num_dimensions> 
-    NdarrayMetadata<T, num_dimensions> left_shift(NdarrayMetadata<T, num_dimensions> Array1,NdarrayMetadata<T, num_dimensions> Array2){
-        auto output = create_array<T, num_dimensions>(Array1.shape);
-        std::transform(Array1.begin(), Array1.end(), Array2.begin(),output.begin(), [](T value1,T value2) noexcept -> T { return value1<<value2; });
+    NdarrayMetadata<T, num_dimensions>* left_shift(NdarrayMetadata<T, num_dimensions>* Array1,NdarrayMetadata<T, num_dimensions>* Array2, NdarrayMetadata<T, num_dimensions>* output){
+        
+        std::transform(Array1->begin(), Array1->end(), Array2->begin(),output->begin(), [](T value1,T value2) noexcept -> T { return value1<<value2; });
         return output;
     }
 
-    template<typename T, size_t num_dimensions> 
-    NdarrayMetadata<T, num_dimensions> right_shift(NdarrayMetadata<T, num_dimensions> Array1,NdarrayMetadata<T, num_dimensions> Array2){
-        auto output = create_array<T, num_dimensions>(Array1.shape);
-        std::transform(Array1.begin(), Array1.end(), Array2.begin(),output.begin(), [](T value1,T value2) noexcept -> T { return value1>>value2; });
+    template<typename T, size_t num_dimensions>
+    NdarrayMetadata<T, num_dimensions>* right_shift(NdarrayMetadata<T, num_dimensions>* Array1,NdarrayMetadata<T, num_dimensions>* Array2, NdarrayMetadata<T, num_dimensions>* output){
+        
+        std::transform(Array1->begin(), Array1->end(), Array2->begin(),output->begin(), [](T value1,T value2) noexcept -> T { return value1>>value2; });
         return output;
     }
 
@@ -64,40 +63,27 @@ namespace numc{
     }
 
     template<typename T, size_t num_dimensions> 
-    NdarrayMetadata<T, num_dimensions-1> packbits(NdarrayMetadata<T, num_dimensions> a, size_t axis){
-        array<size_t,num_dimensions-1> output_shape = numc_hf::removeArrayElement(a.shape,axis);
-        vector<T> allocated_memory3(calc_size<size_t,num_dimensions-1>(output_shape));
-        auto output = create_array<T,num_dimensions-1>(allocated_memory3.data(), output_shape);
+    NdarrayMetadata<T, num_dimensions-1>* packbits(NdarrayMetadata<T, num_dimensions>* a, size_t axis,NdarrayMetadata<T, num_dimensions-1>* output){
 
-        auto output_iter = output.data_buffer.get();
-        std::fill(output.begin(), output.end(), 0);
-        auto input_iter = a.data_buffer.get();
-        size_t axis_stride= a.strides[axis];
-        size_t axis_shape = a.shape[axis];
+        auto output_iter = output->data_buffer.get();
+        auto input_iter = a->data_buffer.get();
+        size_t axis_stride= a->strides[axis];
+        size_t axis_shape = a->shape[axis];
         
-        size_t prev_axis_stride = a.strides[axis-1];
+        size_t prev_axis_stride = a->strides[axis-1];
         size_t prev_axis_prod = 1;
         
         for(size_t i=0;i<axis;i++)
-            prev_axis_prod*=a.shape[i];
+            prev_axis_prod*=a->shape[i];
 
         for(size_t i = 0;i<prev_axis_prod;i++){
             for(size_t j = 0;j<axis_shape;j++) {
                 for(size_t k = 0;k<axis_stride;k++) {
                     output_iter[k + i*prev_axis_stride/axis_shape] += pow(2,8-j-1)*!(input_iter[k + i*prev_axis_stride + j*axis_stride] == 0);
                 }
-                cout << endl;
             }
-            cout << endl;
 		}
-        cout << endl;
-
-        for (auto element: 	output){
-            cout<<(element) << " ";
-        }
-	
         return output;
-
     }
 
 }

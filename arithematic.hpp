@@ -30,44 +30,35 @@ namespace numc {
     }
 
 	template<typename T, size_t num_dimensions> 
-    T prod(NdarrayMetadata<T, num_dimensions> a){
-        size_t output = 0;
-        auto input_iter = a.data_buffer.get();
-        for(size_t i = 0;i<a.total_size;i++){
+    T prod(NdarrayMetadata<T, num_dimensions>* a){
+        T output = 1;
+        auto input_iter = a->data_buffer.get();
+        for(size_t i = 0;i<a->total_size;i++){
             output *= input_iter[i];
         }
         return output;
     }
 	
 	template<typename T, size_t num_dimensions> 
-    T mean(NdarrayMetadata<T, num_dimensions> a){
-		
-        size_t output = 0;
-        for(size_t i = 0;i<a.total_size;i++){
-            output += a(i);
-        }
-        output = (output)/a.total_size;
-        return output;
+    T mean(NdarrayMetadata<T, num_dimensions>* a){
+        return a->mean();
     }
 
 
 	template<typename T, size_t num_dimensions> 
-    NdarrayMetadata<T, num_dimensions-1> sum(NdarrayMetadata<T, num_dimensions> a, size_t axis){
-        	array<size_t,num_dimensions-1> output_shape = removeArrayElement(a.shape,axis);
-			vector<T> allocated_memory3(calc_size<size_t,num_dimensions-1>(output_shape));
-			auto output = NdarrayMetadata<T,num_dimensions-1>(allocated_memory3.data(), output_shape);
-
-        auto output_iter = output.data_buffer.get();
-        std::fill(output.begin(), output.end(), 0);
-        auto input_iter = a.data_buffer.get();
-        size_t axis_stride= a.strides[axis];
-        size_t axis_shape = a.shape[axis];
+    NdarrayMetadata<T, num_dimensions-1>* sum(NdarrayMetadata<T, num_dimensions>* a,NdarrayMetadata<T, num_dimensions-1>* re, size_t axis){
+        cout << "In sum..";
+        auto output_iter = re->data_buffer.get();
+        auto input_iter = a->data_buffer.get();
+        size_t axis_stride= a->strides[axis];
+        size_t axis_shape = a->shape[axis];
+        cout << "Axis that is getting reduced is " << axis_shape <<endl  ;
         
-        size_t prev_axis_stride = a.strides[axis-1];
+        size_t prev_axis_stride = a->strides[axis-1];
         size_t prev_axis_prod = 1;
         
         for(size_t i=0;i<axis;i++)
-            prev_axis_prod*=a.shape[i];
+            prev_axis_prod*=a->shape[i];
 
         for(size_t i = 0;i<prev_axis_prod;i++){
             for(size_t j = 0;j<axis_shape;j++) {
@@ -76,27 +67,49 @@ namespace numc {
                 }
             }
         }
-        cout << endl;
-        return output;
-
+        
+        return re;
     }
 
-	template<typename T, size_t num_dimensions> 
-    NdarrayMetadata<T, num_dimensions-1> prod(NdarrayMetadata<T, num_dimensions> a, size_t axis){
-        array<T,num_dimensions-1> output_shape = removeArrayElement(a.shape,axis);
-        auto output = create_array<T,num_dimensions-1>(output_shape);
-
-        auto output_iter = output.data_buffer.get();
-        std::fill(output.begin(), output.end(), 0);
-        auto input_iter = a.data_buffer.get();
-        size_t axis_stride= a.strides[axis];
-        size_t axis_shape = a.shape[axis];
+    template<typename T, size_t num_dimensions> 
+    NdarrayMetadata<T, num_dimensions-1>* mean(NdarrayMetadata<T, num_dimensions>* a,NdarrayMetadata<T, num_dimensions-1>* re, size_t axis){
+        auto output_iter = re->data_buffer.get();
+        auto input_iter = a->data_buffer.get();
+        size_t axis_stride= a->strides[axis];
+        size_t axis_shape = a->shape[axis];
         
-        size_t prev_axis_stride = a.strides[axis-1];
+        size_t prev_axis_stride = a->strides[axis-1];
         size_t prev_axis_prod = 1;
         
         for(size_t i=0;i<axis;i++)
-            prev_axis_prod*=a.shape[i];
+            prev_axis_prod*=a->shape[i];
+
+        for(size_t i = 0;i<prev_axis_prod;i++){
+            for(size_t j = 0;j<axis_shape;j++) {
+                for(size_t k = 0;k<axis_stride;k++) {
+                    output_iter[k + i*prev_axis_stride/axis_shape] += input_iter[k + i*prev_axis_stride + j*axis_stride];
+                }
+            }
+        }
+
+        for(size_t index=0;index<re->total_size;index++)
+            output_iter[index] /= axis_shape;
+        
+        return re;
+    }
+
+	template<typename T, size_t num_dimensions> 
+    NdarrayMetadata<T, num_dimensions-1>* prod(NdarrayMetadata<T, num_dimensions>* a,NdarrayMetadata<T, num_dimensions-1>* re, size_t axis){
+        auto output_iter = re->data_buffer.get();
+        auto input_iter = a->data_buffer.get();
+        size_t axis_stride= a->strides[axis];
+        size_t axis_shape = a->shape[axis];
+        
+        size_t prev_axis_stride = a->strides[axis-1];
+        size_t prev_axis_prod = 1;
+        
+        for(size_t i=0;i<axis;i++)
+            prev_axis_prod*=a->shape[i];
 
         for(size_t i = 0;i<prev_axis_prod;i++){
             for(size_t j = 0;j<axis_shape;j++) {
@@ -105,75 +118,57 @@ namespace numc {
                 }
             }
         }
-        cout << endl;
-        return output;
+        
+        return re;
 
     }
 
-	template<typename T, size_t num_dimensions> 
-	NdarrayMetadata<T, num_dimensions> add(NdarrayMetadata<T, num_dimensions> array1,NdarrayMetadata<T, num_dimensions> array2){
-		
-		array<size_t, num_dimensions> out_shape = array1.shape;
-		vector<int64_t> output_allocated_memory(calc_size<size_t, num_dimensions>(out_shape));
-		auto output = create_array<int64_t, num_dimensions>(output_allocated_memory.data(), out_shape);    
+	template<typename T, size_t num_dimensions> NdarrayMetadata<T, num_dimensions>* add(NdarrayMetadata<T, num_dimensions>* array1,NdarrayMetadata<T, num_dimensions>* array2, NdarrayMetadata<T, num_dimensions>* output){
+		for(size_t i = 0; i< array1->total_size; i++){
+			output->data_buffer.get()[i] = array1->data_buffer.get()[i] + array2->data_buffer.get()[i];
+		} 
+		return output;
+	}
 
-		auto ite_output = output.data_buffer.get();
-		auto ite_array1 = array1.data_buffer.get();
-		auto ite_array2 = array2.data_buffer.get();
-		
-		for(unsigned int i = 0; i< array1.total_size; i++){
-			
-			ite_output[i] = ite_array1[i] + ite_array2[i];
-			cout << ite_output[i] <<  " " << i << endl; 
+	template<size_t num_dimensions> NdarrayMetadata<double, num_dimensions>* subtract(NdarrayMetadata<double, num_dimensions>* array, double value, NdarrayMetadata<double, num_dimensions>* output){
+	
+		for(size_t i = 0; i< array->total_size; i++){
+			output->data_buffer.get()[i] = array->data_buffer.get()[i] - value;
+			cout << output->data_buffer.get()[i] << " " << array->data_buffer.get()[i] << " \n";
+		}
+
+        
+		cout << endl;
+		return output;
+	}
+
+	template<typename T, size_t num_dimensions> NdarrayMetadata<T, num_dimensions>* square(NdarrayMetadata<T, num_dimensions>* array, NdarrayMetadata<T, num_dimensions>* output){
+        
+        cout << "In Element-wise Square \n ";
+		for(size_t i = 0; i< array->total_size; i++){
+			output->data_buffer.get()[i] = array->data_buffer.get()[i] * array->data_buffer.get()[i];
 		}
 
 		return output;
 	}
 
-	template<typename T, size_t num_dimensions> 
-	NdarrayMetadata<T, num_dimensions> subtract(NdarrayMetadata<T, num_dimensions> array1,NdarrayMetadata<T, num_dimensions> array2){
-		
-		array<size_t, num_dimensions> out_shape = array1.shape;
-		vector<int64_t> output_allocated_memory(calc_size<size_t, num_dimensions>(out_shape));
-		auto output = create_array<int64_t, num_dimensions>(output_allocated_memory.data(), out_shape);    
-
-		auto ite_output = output.data_buffer.get();
-		auto ite_array1 = array1.data_buffer.get();
-		auto ite_array2 = array2.data_buffer.get();
-		
-		// auto output = array1;
-		for(unsigned int i = 0; i< array1.total_size; i++){
-			ite_output[i] = ite_array1[i] - ite_array2[i];
-			cout << ite_output[i] <<  " " << i << endl; 
-		}
-
+	template<typename T, size_t num_dimensions> NdarrayMetadata<T, num_dimensions>* multiply(NdarrayMetadata<T, num_dimensions>* array1,NdarrayMetadata<T, num_dimensions>* array2, NdarrayMetadata<T, num_dimensions>* output){
+        cout << "In Element-wise Multiplication \n";
+		for(size_t i = 0; i< array1->total_size; i++){
+			output->data_buffer.get()[i] = array1->data_buffer.get()[i] * array2->data_buffer.get()[i];
+		} 
 		return output;
-	}
-
-	template<typename T, size_t num_dimensions> 
-	NdarrayMetadata<T, num_dimensions> multiplie(NdarrayMetadata<T, num_dimensions> array1,NdarrayMetadata<T, num_dimensions> array2){
-		array<size_t,num_dimensions> shapearray = array1.shape;
-		auto output = NdarrayMetadata<T, num_dimensions>(shapearray);
-		for(size_t i = 0; i< array1.total_size; i++){
-			cout << array1(i) * array2(i) << " ";
-			output(i) = array1(i) * array2(i);
-		}
-		return (output);
 	}
 
 
     template<typename T, size_t num_dimensions> 
-    NdarrayMetadata<T, num_dimensions> cumprod(NdarrayMetadata<T, num_dimensions> a){
-        array<size_t,num_dimensions> output_shape = a.shape;
-        vector<int64_t> allocated_memory3(calc_size<size_t,num_dimensions>(output_shape));
-        auto output = create_array<int64_t,num_dimensions>(allocated_memory3.data(), output_shape);
+    NdarrayMetadata<T, num_dimensions>* cumprod(NdarrayMetadata<T, num_dimensions>* a,NdarrayMetadata<T, num_dimensions>* output){
 
-        auto input_iter = a.data_buffer.get(); 
+        auto input_iter = a->data_buffer.get(); 
         auto cumprod = input_iter[0];   
-        auto output_iter = output.data_buffer.get();
-        for(size_t i = 0;i<a.total_size;i++){
+        auto output_iter = output->data_buffer.get();
+        for(size_t i = 0;i<a->total_size;i++){
                 cumprod *= input_iter[i];
-                // cout << cumprod << " ";
                 output_iter[i] = cumprod;
         }
 
@@ -181,190 +176,182 @@ namespace numc {
     }
 
     template<typename T, size_t num_dimensions> 
-    NdarrayMetadata<T, num_dimensions> cumsum(NdarrayMetadata<T, num_dimensions> a){
-        array<size_t,num_dimensions> output_shape = a.shape;
-        vector<int64_t> allocated_memory3(calc_size<size_t,num_dimensions>(output_shape));
-        auto output = create_array<int64_t,num_dimensions>(allocated_memory3.data(), output_shape);
+    NdarrayMetadata<T, num_dimensions>* cumsum(NdarrayMetadata<T, num_dimensions>* a,NdarrayMetadata<T, num_dimensions>* output){
 
-        auto input_iter = a.data_buffer.get(); 
-        auto cumsum = input_iter[0];   
-        auto output_iter = output.data_buffer.get();
-        for(size_t i = 0;i<a.total_size;i++){
+        auto input_iter = a->data_buffer.get(); 
+        T cumsum = input_iter[0];   
+        auto output_iter = output->data_buffer.get();
+        for(size_t i = 0;i<a->total_size;i++){
                 cumsum += input_iter[i];
-                // cout << cumsum << " ";
                 output_iter[i] = cumsum;
         }
 
         return output;
     }
 
-	template<typename T, size_t num_dimensions> 
-    NdarrayMetadata<T, num_dimensions> negative(NdarrayMetadata<T, num_dimensions> a){
-        auto output = create_array<T,num_dimensions>(a.shape);
+	
+    template<typename T, size_t num_dimensions> 
+    NdarrayMetadata<T, num_dimensions>* negative(NdarrayMetadata<T, num_dimensions>* a,NdarrayMetadata<T, num_dimensions>* output){
 
-        auto input_iter = a.data_buffer.get(); 
-        auto output_iter = output.data_buffer.get();
-        for(size_t i = 0;i<a.total_size;i++){
-                output_iter[i] = -1*input_iter[i];;
+        auto input_iter = a->data_buffer.get(); 
+          
+        auto output_iter = output->data_buffer.get();
+        for(size_t i = 0;i<a->total_size;i++){
+                output_iter[i] = -1*input_iter[i] ;
         }
 
         return output;
     }
 
 	template<typename T, size_t num_dimensions> 
-    NdarrayMetadata<double, num_dimensions> reciprocal(NdarrayMetadata<T, num_dimensions> a){
-        auto output = create_array<double,num_dimensions>(a.shape);
+    NdarrayMetadata<T, num_dimensions>* reciprocal(NdarrayMetadata<T, num_dimensions>* a,NdarrayMetadata<double, num_dimensions>* output){
 
-        auto input_iter = a.data_buffer.get(); 
-        auto output_iter = output.data_buffer.get();
-        for(size_t i = 0;i<a.total_size;i++){
-                output_iter[i] = 1.0/(1.0*input_iter[i]);
+        auto input_iter = a->data_buffer.get(); 
+          
+        auto output_iter = output->data_buffer.get();
+        for(size_t i = 0;i<a->total_size;i++){
+            output_iter[i] = 1.0/(1.0*input_iter[i]) ;
         }
 
         return output;
     }
 
 	template<typename T, size_t num_dimensions> 
-    NdarrayMetadata<T, 1> ediff1d(NdarrayMetadata<T, num_dimensions> a){
+    NdarrayMetadata<T, 1> ediff1d(NdarrayMetadata<T, num_dimensions>* a,NdarrayMetadata<T, 1>* output){
 		
-		array<size_t,1> shape;
-		shape[0] = a.total_size-1;
-        auto output = create_array<T,num_dimensions>(shape);
 
-        auto input_iter = a.data_buffer.get(); 
-        auto output_iter = output.data_buffer.get();
-        for(size_t i = 0;i<a.total_size;i++){
+        auto input_iter = a->data_buffer.get(); 
+        auto output_iter = output->data_buffer.get();
+        for(size_t i = 0;i<a->total_size;i++){
                 output_iter[i] = input_iter[i+1]-input_iter[i];
         }
-
         return output;
     }
 
 
 	template<typename T, size_t num_dimensions> 
-    NdarrayMetadata<T, num_dimensions> absolute(NdarrayMetadata<T, num_dimensions> Array){
+    NdarrayMetadata<T, num_dimensions>* absolute(NdarrayMetadata<T, num_dimensions>* Array,NdarrayMetadata<T, num_dimensions>* output){
 
-        auto output = copy(Array);
-        std::transform(Array.begin(), Array.end(), output.begin(), [](T inValue) -> T {return std::abs(inValue); });
+        std::transform(Array->begin(), Array->end(), output->begin(), [](T inValue) -> T {return std::abs(inValue); });
 
         return output;
     }
 
 	template<typename T, size_t num_dimensions>
-    NdarrayMetadata<double, num_dimensions> sin(NdarrayMetadata<T, num_dimensions> Array)
+    NdarrayMetadata<double, num_dimensions>* sin(NdarrayMetadata<T, num_dimensions>* Array,NdarrayMetadata<double, num_dimensions>* output)
     {
         
-        auto output = create_array<double,num_dimensions>(Array.shape);
         for(size_t i =0 ; i < output.total_size;i++)
-			output.data_buffer.get()[i] = std::sin(static_cast<double>(Array.data_buffer.get()[i]));
+			output->data_buffer.get()[i] = std::sin(static_cast<double>(Array->data_buffer.get()[i]));
 		
 		for(auto elem : output)
 			cout << elem << " ";
-        return (output);
+        return output;
     }
 	
 	template<typename T, size_t num_dimensions>
-    NdarrayMetadata<double, num_dimensions> cos(NdarrayMetadata<T, num_dimensions> Array)
+    NdarrayMetadata<double, num_dimensions>* cos(NdarrayMetadata<T, num_dimensions>* Array,NdarrayMetadata<double, num_dimensions>* output)
     {
         
-        auto output = create_array<double,num_dimensions>(Array.shape);
-        std::transform(Array.begin(), Array.end(), output.begin(),
-            [](T inValue)  noexcept -> double { return std::cos(static_cast<double>(inValue)); });
-
-        return std::move(output);
+        for(size_t i =0 ; i < output.total_size;i++)
+			output->data_buffer.get()[i] = std::cos(static_cast<double>(Array->data_buffer.get()[i]));
+		
+		for(auto elem : output)
+			cout << elem << " ";
+        return output;
     }
 	
 	template<typename T, size_t num_dimensions>
-    NdarrayMetadata<double, num_dimensions> tan(NdarrayMetadata<T, num_dimensions> Array)
+    NdarrayMetadata<double, num_dimensions>* tan(NdarrayMetadata<T, num_dimensions>* Array,NdarrayMetadata<double, num_dimensions>* output)
     {
         
-        auto output = create_array<double,num_dimensions>(Array.shape);
-        std::transform(Array.begin(), Array.end(), output.begin(),
-            [](T inValue)  noexcept -> double { return std::cos(static_cast<double>(inValue)); });
-
-        return std::move(output);
+        for(size_t i =0 ; i < output.total_size;i++)
+			output->data_buffer.get()[i] = std::tan(static_cast<double>(Array->data_buffer.get()[i]));
+		
+		for(auto elem : output)
+			cout << elem << " ";
+        return output;
     }
 
     template<typename T, size_t num_dimensions>
-    NdarrayMetadata<T, num_dimensions> arcsin(NdarrayMetadata<T, num_dimensions> Array)
+    NdarrayMetadata<double, num_dimensions>* arcsin(NdarrayMetadata<T, num_dimensions>* Array,NdarrayMetadata<double, num_dimensions>* output)
     {
         
-        auto output = copy(Array);
-        std::fill(output.begin(), output.end(), 0);
-        std::transform(Array.begin(), Array.end(), output.begin(),
-            [](T inValue)  noexcept -> double { return std::asin(static_cast<double>(inValue)); });
-
-        return std::move(output);
+        for(size_t i =0 ; i < output.total_size;i++)
+			output->data_buffer.get()[i] = std::asin(static_cast<double>(Array->data_buffer.get()[i]));
+		
+		for(auto elem : output)
+			cout << elem << " ";
+        return output;
     }
 	
     template<typename T, size_t num_dimensions>
-    NdarrayMetadata<T, num_dimensions> arccos(NdarrayMetadata<T, num_dimensions> Array)
+    NdarrayMetadata<double, num_dimensions>* arccos(NdarrayMetadata<T, num_dimensions>* Array,NdarrayMetadata<double, num_dimensions>* output)
     {
         
-        auto output = copy(Array);
-        std::fill(output.begin(), output.end(), 0);
-        std::transform(Array.begin(), Array.end(), output.begin(),
-            [](T inValue)  noexcept -> double { return std::acos(static_cast<double>(inValue)); });
-
-        return std::move(output);
+        for(size_t i =0 ; i < output.total_size;i++)
+			output->data_buffer.get()[i] = std::acos(static_cast<double>(Array->data_buffer.get()[i]));
+		
+		for(auto elem : output)
+			cout << elem << " ";
+        return output;
     }
 
     template<typename T, size_t num_dimensions>
-    NdarrayMetadata<T, num_dimensions> arctan(NdarrayMetadata<T, num_dimensions> Array)
+    NdarrayMetadata<double, num_dimensions>* arctan(NdarrayMetadata<T, num_dimensions>* Array,NdarrayMetadata<double, num_dimensions>* output)
     {
         
-        auto output = copy(Array);
-        std::fill(output.begin(), output.end(), 0);
-        std::transform(Array.begin(), Array.end(), output.begin(),
-            [](T inValue)  noexcept -> double { return std::atan(static_cast<double>(inValue)); });
-
-        return std::move(output);
+        for(size_t i =0 ; i < output.total_size;i++)
+			output->data_buffer.get()[i] = std::atan(static_cast<double>(Array->data_buffer.get()[i]));
+		
+		for(auto elem : output)
+			cout << elem << " ";
+        return output;
     }
 
     template<typename T, size_t num_dimensions>
-    NdarrayMetadata<T, num_dimensions> arccosh(NdarrayMetadata<T, num_dimensions> Array)
+    NdarrayMetadata<double, num_dimensions>* acosh(NdarrayMetadata<T, num_dimensions>* Array,NdarrayMetadata<double, num_dimensions>* output)
     {
         
-        auto output = copy(Array);
-        std::fill(output.begin(), output.end(), 0);
-        std::transform(Array.begin(), Array.end(), output.begin(),
-            [](T inValue)  noexcept -> double { return std::acosh(static_cast<double>(inValue)); });
-
-        return std::move(output);
+        for(size_t i =0 ; i < output.total_size;i++)
+			output->data_buffer.get()[i] = std::acosh(static_cast<double>(Array->data_buffer.get()[i]));
+		
+		for(auto elem : output)
+			cout << elem << " ";
+        return output;
     }   
 
     template<typename T, size_t num_dimensions>
-    NdarrayMetadata<T, num_dimensions> arcsinh(NdarrayMetadata<T, num_dimensions> Array)
+    NdarrayMetadata<double, num_dimensions>* asinh(NdarrayMetadata<T, num_dimensions>* Array,NdarrayMetadata<double, num_dimensions>* output)
     {
         
-        auto output = copy(Array);
-        std::fill(output.begin(), output.end(), 0);
-        std::transform(Array.begin(), Array.end(), output.begin(),
-            [](T inValue)  noexcept -> double { return std::asinh(static_cast<double>(inValue)); });
-        return std::move(output);
+        for(size_t i =0 ; i < output.total_size;i++)
+			output->data_buffer.get()[i] = std::asinh(static_cast<double>(Array->data_buffer.get()[i]));
+		
+		for(auto elem : output)
+			cout << elem << " ";
+        return output;
     }
 
-    template<typename T, size_t num_dimensions>
-    NdarrayMetadata<T, num_dimensions> arctanh(NdarrayMetadata<T, num_dimensions> Array)
+template<typename T, size_t num_dimensions>
+    NdarrayMetadata<double, num_dimensions>* atanh(NdarrayMetadata<T, num_dimensions>* Array,NdarrayMetadata<double, num_dimensions>* output)
     {
         
-        auto output = copy(Array);
-        std::fill(output.begin(), output.end(), 0);
-        std::transform(Array.begin(), Array.end(), output.begin(),
-            [](T inValue)  noexcept -> double { return std::atanh(static_cast<double>(inValue)); });
-        return std::move(output);
+        for(size_t i =0 ; i < output.total_size;i++)
+			output->data_buffer.get()[i] = std::atanh(static_cast<double>(Array->data_buffer.get()[i]));
+		
+		for(auto elem : output)
+			cout << elem << " ";
+        return output;
     }
-
     template<typename T, size_t num_dimensions>
-    NdarrayMetadata<T, num_dimensions> arctan2(NdarrayMetadata<T, num_dimensions> ArrayY, NdarrayMetadata<T, num_dimensions> ArrayX)
+    NdarrayMetadata<T, num_dimensions> arctan2(NdarrayMetadata<T, num_dimensions>* ArrayY, NdarrayMetadata<T, num_dimensions>* ArrayX,NdarrayMetadata<T, num_dimensions>*  output)
     {
         if (ArrayY.shape() != ArrayX.shape())
         {
             throw UnequalShapeError();
         }
-        auto output = copy(ArrayY);
-        std::fill(output.begin(), output.end(), 0);
-        std::transform(ArrayY.begin(), ArrayY.end(), ArrayX.begin(), output.begin(),
+        std::transform(ArrayY->begin(), ArrayY->end(), ArrayX->begin(), output->begin(),
             [](T Y,T X)  noexcept -> double { return std::atan2(static_cast<double>(Y), static_cast<double>(X)); });
         return std::move(output);
     }
